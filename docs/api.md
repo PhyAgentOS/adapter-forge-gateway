@@ -77,7 +77,8 @@ HTTP 输出不包含 provider-pinned `endpoint_instance_id`。HTTP handler 使�
 - `GET /tools/{tool_id}/context`：返回 ToolSpec binding、Gateway readiness、当前 `endpoint.status` 与 `RobotFrameProfile`。
 - `POST /tools/{tool_id}:invoke`：创建 Action invocation，Gateway 生成 invocation/attempt identity 并 pin 当前 endpoint instance，返回 `202`。
 - `GET /invocations/{invocation_id}`：返回 phase；非 terminal 时触发一次有界 provider status refresh。
-- `GET /invocations/{invocation_id}/result`：terminal result 返回 `200`；pending 返回 `202` 并触发一次有界 provider result refresh。
+- `GET /invocations/{invocation_id}/result`：若 store 已保留 result（包括 `unknown`），HTTP 返回 `200` 且 `data.status=available`，不再触发 provider lookup；这是 HTTP 读取语义。若尚无 retained result，返回 `202` 并尝试一次有界 provider result refresh；refresh 抛 `RuntimeError`（包括 outbound 满）会被抑制，HTTP 仍返回 `202`，不会改写为 503。
+- Dora/Tool 协议 caller 路径是另一条路径。仅 `tool.result.request` 在 result 已保留且 phase 为非 unknown terminal 时直接返回 instance-less `tool.result.response`；`tool.status.request` 不使用该缓存直出，仍会发起或挂接 provider status lookup。`unknown` 仍不直出，result request 会发起或挂接 provider result lookup，只有迟到的 terminal provider result 才能把它调回 terminal。对 result/status 两类在途 exchange，同一 purpose 的自动 refresh 已在途且尚无 waiter 时，第一个 caller 会先预留一个响应槽位再挂接该 exchange；已有 waiter 时返回可重试的 `FORGE_TOOL_GATEWAY_BUSY`。若 outbound 邮箱绝对无容量，该 caller 路径按有界邮箱语义抛出 `ToolGatewayMailboxFull`，不越界写队列，也不伪造 BUSY。
 - `POST /invocations/{invocation_id}/cancel`：发送 cancel control。`202 requested/accepted` 仅表示 control 被接纳，不表示 invocation 已 cancelled。
 - `GET /invocations/{invocation_id}/events`：SSE，支持 `Last-Event-ID`；游标早于保留窗口返回 `410`，每个 invocation 只保留配置上限内的最新事件。
 

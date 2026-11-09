@@ -21,6 +21,7 @@ from forge_tool import (
     ToolExecutionKey,
     ToolRequest,
     ToolResult,
+    ToolResultResponse,
     control_response_from_payload,
     endpoint_descriptor_to_payload,
     endpoint_status_from_envelope,
@@ -32,6 +33,7 @@ from forge_tool import (
     invoke_response_from_payload,
     make_endpoint_registry_response_envelope,
     make_invoke_request_envelope,
+    make_result_response_envelope,
     result_response_from_payload,
     status_response_from_payload,
     validate_message_envelope,
@@ -1220,19 +1222,60 @@ class ToolGatewayService:
             purpose = (
                 "status" if request.message_type == "tool.status.request" else "result"
             )
-            if any(
-                exchange.execution_key == key and exchange.purpose == purpose
-                for exchange in self._action_exchanges.values()
+            # A retained terminal result is authoritative.  Serve it directly
+            # without creating a provider lookup or an exchange.  ``unknown`` is
+            # deliberately excluded: only a late terminal provider result may
+            # reconcile it.
+            if (
+                purpose == "result"
+                and item.result is not None
+                and item.result.status != "unknown"
+                and item.phase in ("completed", "failed", "cancelled", "stopped")
             ):
-                self._respond_logical_action_error_locked(
+                direct_response = make_result_response_envelope(
+                    ToolResultResponse(status="available", result=item.result),
                     request,
-                    self._tool_error(
-                        "FORGE_TOOL_GATEWAY_BUSY",
-                        f"an Action {purpose} lookup is already pending",
-                        retryable=True,
-                    ),
+                )
+                self._reserve_outbound_slots_locked()
+                self._append_reserved_outbound_locked(
+                    ToolOutboundMessage(
+                        output_id=self.config.response_output_id,
+                        envelope=direct_response,
+                        kind="caller.action_response",
+                    )
                 )
                 return
+
+            existing = next(
+                (
+                    exchange
+                    for exchange in self._action_exchanges.values()
+                    if exchange.execution_key == key and exchange.purpose == purpose
+                ),
+                None,
+            )
+            if existing is not None:
+                if (
+                    existing.logical_request is not None
+                    or existing.caller_response_reserved
+                ):
+                    self._respond_logical_action_error_locked(
+                        request,
+                        self._tool_error(
+                            "FORGE_TOOL_GATEWAY_BUSY",
+                            f"an Action {purpose} lookup is already pending",
+                            retryable=True,
+                        ),
+                    )
+                    return
+                # A terminal event may have started an automatic, waiter-less
+                # result lookup.  Reserve one caller response slot, then attach
+                # to that same lookup; never enqueue a second provider request.
+                self._reserve_outbound_slots_locked()
+                existing.logical_request = request
+                existing.caller_response_reserved = True
+                return
+
             try:
                 queued = self._refresh_action_key_locked(
                     key,
@@ -1241,6 +1284,21 @@ class ToolGatewayService:
                     logical_request=request,
                     caller_response_reserved=True,
                 )
+            except ToolGatewayMailboxFull as error:
+                # Exchange-table capacity can be full while the outbound
+                # mailbox still has room for a retryable BUSY response.  If the
+                # outbound mailbox itself is full, writing BUSY also fails with
+                # ToolGatewayMailboxFull, preserving the bounded-mailbox
+                # backpressure contract.
+                self._respond_logical_action_error_locked(
+                    request,
+                    self._tool_error(
+                        "FORGE_TOOL_GATEWAY_BUSY",
+                        str(error),
+                        retryable=True,
+                    ),
+                )
+                return
             except (RuntimeError, ValueError) as error:
                 self._respond_logical_action_error_locked(
                     request,

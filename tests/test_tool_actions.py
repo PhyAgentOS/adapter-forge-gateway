@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -18,6 +20,7 @@ from forge_tool import (
     ToolExecutionStatus,
     ToolOperationDescriptor,
     ToolRequest,
+    ToolError,
     ToolResult,
     ToolResultResponse,
     error_from_payload,
@@ -29,6 +32,8 @@ from forge_tool import (
     make_registration_envelope,
     make_result_response_envelope,
     make_status_response_envelope,
+    result_response_from_payload,
+    validate_message_envelope,
 )
 
 from forge_gateway.config import GatewayConfig
@@ -40,6 +45,8 @@ from forge_gateway.domain.action_invocations import (
 )
 from forge_gateway.services.runtime_service import GatewayRuntime
 from forge_gateway.services.tool_gateway_service import (
+    ToolGatewayMailboxFull,
+    ToolGatewayService,
     make_logical_invoke_request_envelope,
 )
 
@@ -1044,3 +1051,674 @@ def test_cancel_action_on_deadline_unknown_forwards_to_provider() -> None:
         assert replacement["phase"] == "dispatching"
     finally:
         runtime.close()
+
+
+def _accepted_action(
+    gateway: ToolGatewayService,
+) -> tuple[dict[str, Any], ToolContext]:
+    created = gateway.submit_http_action("robot.pick", {})
+    provider_invoke = gateway.take_outbound()
+    assert provider_invoke is not None
+    _, provider_context = invoke_request_from_envelope(provider_invoke.envelope)
+    gateway.handle_input(
+        "arm/to_gateway",
+        make_invoke_response_envelope(ToolAccepted(), provider_invoke.envelope),
+        received_at=time.monotonic(),
+    )
+    return created, provider_context
+
+
+def _caller_result_request(
+    created: dict[str, Any], request_id: str
+) -> ToolEnvelope:
+    return ToolEnvelope(
+        protocol=TOOL_ENDPOINT_PROTOCOL,
+        message_type="tool.result.request",
+        request_id=request_id,
+        invocation_id=str(created["invocation_id"]),
+        attempt_id=str(created["attempt_id"]),
+        endpoint_id=str(created["endpoint_id"]),
+        endpoint_instance_id=None,
+        operation=str(created["operation"]),
+        payload={},
+    )
+
+
+def _terminal_event(
+    provider_context: ToolContext, *, sequence: int = 0
+) -> ToolEnvelope:
+    return make_event_envelope(
+        ToolEvent(type="executor_completed", data={"final": True}),
+        provider_context,
+        endpoint_instance_id="arm-instance-1",
+        sequence=sequence,
+    )
+
+
+def _drain_outbound(gateway: ToolGatewayService) -> list[Any]:
+    messages: list[Any] = []
+    while True:
+        message = gateway.take_outbound()
+        if message is None:
+            return messages
+        messages.append(message)
+
+
+def _set_cached_result(
+    gateway: ToolGatewayService,
+    created: dict[str, Any],
+    phase: str,
+    result: ToolResult,
+) -> None:
+    changed = gateway.action_invocations.set_phase(
+        (str(created["invocation_id"]), str(created["attempt_id"])),
+        phase,  # type: ignore[arg-type]
+        now=time.monotonic(),
+        result=result,
+        error=result.error,
+    )
+    assert changed
+
+
+def test_auto_result_lookup_coalesces_caller_result() -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, provider_context = _accepted_action(runtime.tool_gateway)
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            _terminal_event(provider_context),
+            received_at=time.monotonic(),
+        )
+        auto_lookups = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(auto_lookups) == 1
+
+        caller = _caller_result_request(created, "caller-result-coalesce")
+        runtime.tool_gateway.handle_input(
+            "tool_request", caller, received_at=time.monotonic()
+        )
+        attached = _drain_outbound(runtime.tool_gateway)
+        busy_codes = [
+            error_from_payload(message.envelope.payload).code
+            for message in attached
+            if message.envelope.message_type == "tool.error"
+        ]
+        assert "FORGE_TOOL_GATEWAY_BUSY" not in busy_codes, (
+            "caller result request must attach to the in-flight automatic "
+            f"lookup instead of returning BUSY: {busy_codes}"
+        )
+        assert not [
+            message
+            for message in attached
+            if message.envelope.message_type == "tool.result.request"
+        ], "attaching the caller must not create a second provider lookup"
+        assert runtime.tool_gateway.reserved_outbound_count == 1
+
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            make_result_response_envelope(
+                ToolResultResponse(
+                    status="available",
+                    result=ToolResult(status="succeeded", outputs={"ok": True}),
+                ),
+                auto_lookups[0].envelope,
+            ),
+            received_at=time.monotonic(),
+        )
+        responses = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        response = result_response_from_payload(responses[0].envelope.payload)
+        assert response.status == "available"
+        assert response.result is not None
+        assert response.result.status == "succeeded"
+        assert responses[0].envelope.request_id == caller.request_id
+        assert responses[0].envelope.endpoint_instance_id is None
+        snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert snapshot is not None
+        assert snapshot["phase"] == "completed"
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+@pytest.mark.parametrize(
+    ("phase", "expected_result"),
+    [
+        (
+            "completed",
+            ToolResult(status="succeeded", outputs={"cached": "completed"}),
+        ),
+        (
+            "failed",
+            ToolResult(
+                status="failed",
+                outputs={"cached": "failed"},
+                error=ToolError(code="E_CACHED", message="cached failure"),
+            ),
+        ),
+        (
+            "cancelled",
+            ToolResult(status="cancelled", outputs={"cached": "cancelled"}),
+        ),
+        (
+            "stopped",
+            ToolResult(status="stopped", outputs={"cached": "stopped"}),
+        ),
+    ],
+    ids=["succeeded", "failed", "cancelled", "stopped"],
+)
+def test_cached_result_available_direct_out(
+    phase: str, expected_result: ToolResult
+) -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, _ = _accepted_action(runtime.tool_gateway)
+        _set_cached_result(runtime.tool_gateway, created, phase, expected_result)
+        assert _drain_outbound(runtime.tool_gateway) == []
+
+        caller = _caller_result_request(created, f"cached-{phase}-1")
+        runtime.tool_gateway.handle_input(
+            "tool_request", caller, received_at=time.monotonic()
+        )
+        first = _drain_outbound(runtime.tool_gateway)
+        provider_lookups = [
+            message
+            for message in first
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert not provider_lookups, (
+            f"a cached non-unknown {phase} result must be served directly, "
+            "not looked up again at the provider"
+        )
+        responses = [
+            message
+            for message in first
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        validate_message_envelope(responses[0].envelope)
+        response = result_response_from_payload(responses[0].envelope.payload)
+        assert response.status == "available"
+        assert response.result is not None
+        assert response.result.status == expected_result.status
+        assert response.result.outputs == expected_result.outputs
+        assert response.result.error == expected_result.error
+        assert responses[0].envelope.endpoint_instance_id is None
+        assert responses[0].envelope.request_id == caller.request_id
+
+        second_caller = _caller_result_request(
+            created, f"cached-{phase}-2"
+        )
+        runtime.tool_gateway.handle_input(
+            "tool_request", second_caller, received_at=time.monotonic()
+        )
+        second = _drain_outbound(runtime.tool_gateway)
+        assert not [
+            message
+            for message in second
+            if message.envelope.message_type == "tool.result.request"
+        ], "the direct-out path must not create a persistent exchange"
+        second_responses = [
+            message
+            for message in second
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(second_responses) == 1
+        assert (
+            result_response_from_payload(
+                second_responses[0].envelope.payload
+            ).status
+            == "available"
+        )
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+def test_cached_result_unknown_skips_direct_out() -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, _ = _accepted_action(runtime.tool_gateway)
+        unknown_error = ToolError(
+            code="FORGE_TOOL_EXECUTION_OUTCOME_UNKNOWN",
+            message="provider outcome is unknown",
+        )
+        unknown_result = ToolResult(
+            status="unknown", outputs={}, error=unknown_error
+        )
+        _set_cached_result(
+            runtime.tool_gateway, created, "unknown", unknown_result
+        )
+        assert _drain_outbound(runtime.tool_gateway) == []
+
+        caller = _caller_result_request(created, "unknown-cache-1")
+        runtime.tool_gateway.handle_input(
+            "tool_request", caller, received_at=time.monotonic()
+        )
+        queued = _drain_outbound(runtime.tool_gateway)
+        provider_lookups = [
+            message
+            for message in queued
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(provider_lookups) == 1
+        assert not [
+            message
+            for message in queued
+            if message.envelope.message_type == "tool.result.response"
+        ], "unknown must never be served as a cached available result"
+        assert runtime.tool_gateway.reserved_outbound_count == 1
+
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            make_result_response_envelope(
+                ToolResultResponse(
+                    status="available",
+                    result=ToolResult(
+                        status="succeeded", outputs={"late": True}
+                    ),
+                ),
+                provider_lookups[0].envelope,
+            ),
+            received_at=time.monotonic(),
+        )
+        responses = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        response = result_response_from_payload(responses[0].envelope.payload)
+        assert response.status == "available"
+        assert response.result is not None
+        assert response.result.status == "succeeded"
+        assert responses[0].envelope.request_id == caller.request_id
+        snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert snapshot is not None
+        assert snapshot["phase"] == "completed"
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+@pytest.mark.parametrize("outcome", ["not_found", "timeout"])
+def test_result_lookup_not_found_or_timeout_stays_unknown(
+    outcome: str,
+) -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, _ = _accepted_action(runtime.tool_gateway)
+        if outcome == "timeout":
+            _set_cached_result(
+                runtime.tool_gateway,
+                created,
+                "unknown",
+                ToolResult(
+                    status="unknown",
+                    outputs={},
+                    error=ToolError(
+                        code="FORGE_TOOL_EXECUTION_OUTCOME_UNKNOWN",
+                        message="provider outcome is unknown before lookup",
+                    ),
+                ),
+            )
+
+        caller = _caller_result_request(created, f"lookup-{outcome}")
+        runtime.tool_gateway.handle_input(
+            "tool_request", caller, received_at=time.monotonic()
+        )
+        lookup_messages = _drain_outbound(runtime.tool_gateway)
+        provider_lookups = [
+            message
+            for message in lookup_messages
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(provider_lookups) == 1
+
+        if outcome == "not_found":
+            runtime.tool_gateway.handle_input(
+                "arm/to_gateway",
+                make_result_response_envelope(
+                    ToolResultResponse(status="not_found"),
+                    provider_lookups[0].envelope,
+                ),
+                received_at=time.monotonic(),
+            )
+            responses = [
+                message
+                for message in _drain_outbound(runtime.tool_gateway)
+                if message.envelope.message_type == "tool.result.response"
+            ]
+            assert len(responses) == 1
+            assert (
+                result_response_from_payload(responses[0].envelope.payload).status
+                == "not_found"
+            )
+        else:
+            runtime.tool_gateway.sweep(now=time.monotonic() + 10.0)
+            errors = [
+                message
+                for message in _drain_outbound(runtime.tool_gateway)
+                if message.envelope.message_type == "tool.error"
+            ]
+            assert len(errors) == 1
+            error = error_from_payload(errors[0].envelope.payload)
+            assert error.code == "FORGE_TOOL_EXCHANGE_TIMEOUT"
+            assert error.retryable is True
+            assert errors[0].envelope.request_id == caller.request_id
+
+        snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert snapshot is not None
+        assert snapshot["phase"] == "unknown"
+        assert snapshot["result"]["status"] == "unknown"
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+def test_unknown_reconcile_after_queued_result_lookup() -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, provider_context = _accepted_action(runtime.tool_gateway)
+        item = runtime.tool_gateway.action_invocations.get(
+            (str(created["invocation_id"]), str(created["attempt_id"])),
+            now=time.monotonic(),
+        )
+        assert item is not None and item.deadline_ms is not None
+        runtime.tool_gateway.action_invocations.mark_deadlines_ambiguous(
+            now=time.monotonic(), epoch_ms=item.deadline_ms
+        )
+        unknown_snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert unknown_snapshot is not None
+        assert unknown_snapshot["phase"] == "unknown"
+        assert unknown_snapshot["result"]["status"] == "unknown"
+
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            _terminal_event(provider_context),
+            received_at=time.monotonic(),
+        )
+        auto_lookups = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(auto_lookups) == 1
+
+        caller = _caller_result_request(created, "unknown-reconcile-caller")
+        runtime.tool_gateway.handle_input(
+            "tool_request", caller, received_at=time.monotonic()
+        )
+        attached = _drain_outbound(runtime.tool_gateway)
+        busy_codes = [
+            error_from_payload(message.envelope.payload).code
+            for message in attached
+            if message.envelope.message_type == "tool.error"
+        ]
+        assert "FORGE_TOOL_GATEWAY_BUSY" not in busy_codes, (
+            "unknown reconciliation must attach to the automatic lookup "
+            f"instead of returning BUSY: {busy_codes}"
+        )
+        assert not [
+            message
+            for message in attached
+            if message.envelope.message_type == "tool.result.request"
+        ], "the caller must reuse the in-flight provider lookup"
+        assert runtime.tool_gateway.reserved_outbound_count == 1
+
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            make_result_response_envelope(
+                ToolResultResponse(
+                    status="available",
+                    result=ToolResult(
+                        status="succeeded", outputs={"reconciled": True}
+                    ),
+                ),
+                auto_lookups[0].envelope,
+            ),
+            received_at=time.monotonic(),
+        )
+        responses = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        response = result_response_from_payload(responses[0].envelope.payload)
+        assert response.status == "available"
+        assert response.result is not None
+        assert response.result.status == "succeeded"
+        assert responses[0].envelope.request_id == caller.request_id
+        reconciled = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert reconciled is not None
+        assert reconciled["phase"] == "completed"
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+def test_cached_result_busy_only_when_waiter_or_mailbox_full() -> None:
+    runtime = GatewayRuntime(_config())
+    try:
+        _register(runtime)
+        created, provider_context = _accepted_action(runtime.tool_gateway)
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            _terminal_event(provider_context),
+            received_at=time.monotonic(),
+        )
+        auto_lookups = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(auto_lookups) == 1
+
+        first_caller = _caller_result_request(created, "waiter-first")
+        runtime.tool_gateway.handle_input(
+            "tool_request", first_caller, received_at=time.monotonic()
+        )
+        first_attached = _drain_outbound(runtime.tool_gateway)
+        first_busy = [
+            error_from_payload(message.envelope.payload).code
+            for message in first_attached
+            if message.envelope.message_type == "tool.error"
+        ]
+        assert "FORGE_TOOL_GATEWAY_BUSY" not in first_busy, (
+            "the first caller must attach to the waiter-less automatic lookup: "
+            f"{first_busy}"
+        )
+        assert runtime.tool_gateway.reserved_outbound_count == 1
+
+        second_caller = _caller_result_request(created, "waiter-second")
+        runtime.tool_gateway.handle_input(
+            "tool_request", second_caller, received_at=time.monotonic()
+        )
+        second_outbound = _drain_outbound(runtime.tool_gateway)
+        second_errors = [
+            error_from_payload(message.envelope.payload)
+            for message in second_outbound
+            if message.envelope.message_type == "tool.error"
+        ]
+        assert len(second_errors) == 1
+        assert second_errors[0].code == "FORGE_TOOL_GATEWAY_BUSY"
+        assert second_errors[0].retryable is True
+        assert second_outbound[0].envelope.request_id == second_caller.request_id
+
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            make_result_response_envelope(
+                ToolResultResponse(
+                    status="available",
+                    result=ToolResult(status="succeeded", outputs={"waiter": 1}),
+                ),
+                auto_lookups[0].envelope,
+            ),
+            received_at=time.monotonic(),
+        )
+        responses = [
+            message
+            for message in _drain_outbound(runtime.tool_gateway)
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        assert responses[0].envelope.request_id == first_caller.request_id
+        snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert snapshot is not None
+        assert snapshot["phase"] == "completed"
+        assert runtime.tool_gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+    service = ToolGatewayService(_config().tools, outbound_capacity=1)
+    fake_runtime = SimpleNamespace(tool_gateway=service)
+    try:
+        _register(fake_runtime)  # type: ignore[arg-type]
+        created, provider_context = _accepted_action(service)
+        service.handle_input(
+            "arm/to_gateway",
+            _terminal_event(provider_context),
+            received_at=time.monotonic(),
+        )
+        assert service.outbound_count == 1
+
+        blocked_caller = _caller_result_request(created, "mailbox-blocked")
+        with pytest.raises(ToolGatewayMailboxFull):
+            service.handle_input(
+                "tool_request", blocked_caller, received_at=time.monotonic()
+            )
+        assert service.reserved_outbound_count == 0
+
+        drained = _drain_outbound(service)
+        assert len(drained) == 1
+        lookups = [
+            message
+            for message in drained
+            if message.envelope.message_type == "tool.result.request"
+        ]
+        assert len(lookups) == 1
+
+        retry_caller = _caller_result_request(created, "mailbox-retry")
+        service.handle_input(
+            "tool_request", retry_caller, received_at=time.monotonic()
+        )
+        retry_outbound = _drain_outbound(service)
+        retry_busy = [
+            error_from_payload(message.envelope.payload).code
+            for message in retry_outbound
+            if message.envelope.message_type == "tool.error"
+        ]
+        assert "FORGE_TOOL_GATEWAY_BUSY" not in retry_busy, (
+            "a mailbox-full failure must not partially reserve or mark the "
+            f"exchange as having a waiter: {retry_busy}"
+        )
+        assert service.reserved_outbound_count == 1
+
+        service.handle_input(
+            "arm/to_gateway",
+            make_result_response_envelope(
+                ToolResultResponse(
+                    status="available",
+                    result=ToolResult(status="succeeded", outputs={"retry": 1}),
+                ),
+                lookups[0].envelope,
+            ),
+            received_at=time.monotonic(),
+        )
+        responses = [
+            message
+            for message in _drain_outbound(service)
+            if message.envelope.message_type == "tool.result.response"
+        ]
+        assert len(responses) == 1
+        assert responses[0].envelope.request_id == retry_caller.request_id
+        assert service.reserved_outbound_count == 0
+    finally:
+        service.begin_close()
+
+
+def test_http_retained_unknown_result_lookup_is_not_triggered() -> None:
+    """HTTP serves any retained result, including unknown, without a lookup."""
+    runtime = GatewayRuntime(_config())
+    app = FastAPI()
+    register_tool_routes(app, runtime)
+    client = TestClient(app)
+    try:
+        _register(runtime)
+        created, _ = _accepted_action(runtime.tool_gateway)
+        unknown = ToolResult(
+            status="unknown",
+            outputs={},
+            error=ToolError(
+                code="FORGE_TOOL_EXECUTION_OUTCOME_UNKNOWN",
+                message="provider outcome is unknown",
+            ),
+        )
+        _set_cached_result(runtime.tool_gateway, created, "unknown", unknown)
+        assert _drain_outbound(runtime.tool_gateway) == []
+
+        response = client.get(
+            f"/invocations/{created['invocation_id']}/result"
+        )
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["status"] == "available"
+        assert body["result"]["status"] == "unknown"
+        assert _drain_outbound(runtime.tool_gateway) == [], (
+            "HTTP must not queue a provider lookup for a retained unknown result"
+        )
+    finally:
+        runtime.close()
+
+
+def test_http_pending_result_lookup_full_outbound_returns_202() -> None:
+    """A full outbound mailbox suppresses refresh failure on the HTTP route."""
+    service = ToolGatewayService(_config().tools, outbound_capacity=1)
+    fake_runtime = SimpleNamespace(tool_gateway=service)
+    app = FastAPI()
+    register_tool_routes(app, fake_runtime)
+    client = TestClient(app)
+    try:
+        _register(fake_runtime)  # type: ignore[arg-type]
+        created, _ = _accepted_action(service)
+        service.submit_http_action("robot.pick", {})
+        assert service.outbound_count == 1
+
+        response = client.get(
+            f"/invocations/{created['invocation_id']}/result"
+        )
+
+        assert response.status_code == 202
+        assert response.json()["data"]["status"] == "pending"
+        assert service.outbound_count == 1
+        assert service.action_result_snapshot(created["invocation_id"]) == {
+            "status": "pending"
+        }
+    finally:
+        service.begin_close()
