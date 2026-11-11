@@ -231,7 +231,12 @@ class GatewayDoraRunner:
             event = receive(timeout=self._poll_timeout)
             if event is None:
                 return
-            if event.get("type") == "ERROR" and "timed out" in str(event.get("error", "")).lower():
+            error_head = str(event.get("error", "")).splitlines()
+            if (
+                event.get("type") == "ERROR"
+                and error_head
+                and error_head[0].strip() == "Timeout event stream error: Receiver timed out"
+            ):
                 continue
             yield event
             if event.get("type") in {"STOP", "ERROR"}:

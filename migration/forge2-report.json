@@ -5,12 +5,12 @@
     "Use official Forge Tool 2.x and public Msgs; remove vendored protocol copy.",
     "Initialize Arrow/Msgs before the Dora reader thread; add real standalone and image/state chain CI.",
     "Synchronize English/Chinese root README guidance and frozen dependencies.",
-    "Use bounded Dora next(timeout=) receives; ignore only receive timeouts, preserve EOF and genuine transport errors."
+    "Use bounded Dora next(timeout=) receives; match only the measured native receiver timeout and preserve EOF and genuine upstream timeout failures."
   ],
   "software_tests": {
     "log": "tests-final.log",
     "summary": [
-      "268 passed, 2 warnings"
+      "269 passed, 2 warnings"
     ]
   },
   "dora_cli": "1.0.1",
@@ -39,8 +39,8 @@
         "msg": "gateway healthy"
       },
       "state": {
-        "running_time": 0.298,
-        "current_frame_count": 7,
+        "running_time": 0.142,
+        "current_frame_count": 3,
         "sensors": {
           "joints": {},
           "command": {}
@@ -191,8 +191,8 @@
         "msg": "gateway healthy"
       },
       "state": {
-        "running_time": 0.108,
-        "current_frame_count": 3,
+        "running_time": 0.766,
+        "current_frame_count": 10,
         "sensors": {
           "joints": {
             "joint1": 0.25

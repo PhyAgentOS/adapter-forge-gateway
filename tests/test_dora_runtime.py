@@ -294,7 +294,7 @@ class _PollingNode(_Node):
 def test_native_receive_timeout_does_not_stop_gateway() -> None:
     runtime = _runtime()
     node = _PollingNode([
-        {"type": "ERROR", "error": "receive timed out"},
+        {"type": "ERROR", "error": "Timeout event stream error: Receiver timed out\n\nLocation: native.rs:1"},
         {"type": "INPUT", "id": "tick"},
         {"type": "STOP"},
     ])
@@ -319,13 +319,14 @@ def test_native_receive_eof_ends_gateway_loop() -> None:
         runtime.close()
 
 
-def test_native_receive_error_remains_a_failure() -> None:
+@pytest.mark.parametrize("error", ["transport failed", "upstream peer timed out"])
+def test_native_receive_error_remains_a_failure(error: str) -> None:
     runtime = _runtime()
-    runner = _runner(runtime, _PollingNode([{"type": "ERROR", "error": "transport failed"}]))
+    runner = _runner(runtime, _PollingNode([{"type": "ERROR", "error": error}]))
     try:
         runner.start()
         assert runner.run() == "error"
-        assert "transport failed" in str(runtime.last_error)
+        assert error in str(runtime.last_error)
     finally:
         runner.join_reader(1.0)
         runtime.close()
