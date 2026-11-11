@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -84,24 +84,25 @@ wheels = [
 
 [[package]]
 name = "dora-rs"
-version = "0.4.1"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "numpy" },
     { name = "pyarrow" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/ff/894f11890a526f107d3d06b0e71209b45e5a7bb3666aed23725308bbf78a/dora_rs-0.4.1.tar.gz", hash = "sha256:fec74e823d438c6281caf2447b077f9299380b849a5ab113961bcf5e1d061332", size = 400799, upload-time = "2026-01-20T20:43:23.349Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/fc/9dd2e1cc4da1caf46496353da6c12f7b7c90512186d828f1d587dc6deddc/dora_rs-1.0.1.tar.gz", hash = "sha256:8cef7fa133d93e7ca46581a9efef6b45b5768cecef5ee6b9e22632978b8fe8a2", size = 1690155, upload-time = "2026-09-03T12:21:54.217Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/86/9ce12fbbfc365b7037666ffbc79ac93ba05690b22cac8fad8d2104577dfe/dora_rs-0.4.1-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:a315e7bfefa64c6082da31b5fa77375a485d5a8558c8e835ef98b389b6906aec", size = 17873861, upload-time = "2026-01-20T20:43:09.532Z" },
-    { url = "https://files.pythonhosted.org/packages/bc/62/5f476d78a57d2557c76458049c55a408618c0ceb5d1fdd267cbc9fc333b2/dora_rs-0.4.1-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0f903b2fc89807f9f56e31807c3e0fcf8a703c2accfe932b193a8898212c22a0", size = 17036942, upload-time = "2026-01-20T20:42:56.288Z" },
-    { url = "https://files.pythonhosted.org/packages/30/46/ff8235c5086b6f124a3ae47ee52eafdb6bea0e589d9ab506ceb085253c2c/dora_rs-0.4.1-cp37-abi3-manylinux_2_28_armv7l.whl", hash = "sha256:3edbb5856668dd6d04e1c1fd941f20588acb7f16ba5c7d60d6487c07d3d1da2c", size = 15510340, upload-time = "2026-01-20T20:42:59.773Z" },
-    { url = "https://files.pythonhosted.org/packages/08/06/e763a0305c396a29ea56a378e08a52a4f14403b3abb0c8d9004925d49da9/dora_rs-0.4.1-cp37-abi3-manylinux_2_28_i686.whl", hash = "sha256:fd5b5ceeec35e39f2007fd4fb20efa7d4c5c425ae85e9ea19357184830cf5fdb", size = 18873782, upload-time = "2026-01-20T20:43:03.331Z" },
-    { url = "https://files.pythonhosted.org/packages/94/53/7dc142faa1719333d57c78cfcf419f2b176770b49ebef54e0bbfa34212ac/dora_rs-0.4.1-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:7cec1754d300dafff1b2c930608700320c15903396cdb4d79b4396fe88c08f68", size = 17401111, upload-time = "2026-01-20T20:43:06.392Z" },
-    { url = "https://files.pythonhosted.org/packages/50/73/15138c5dfb1e0d6237dfca436b866da7cc39c8d6e475d271c671cd9079bd/dora_rs-0.4.1-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:98ff55301959686d2050359066f869998f8ed3efc87f1f7fa0fd889cb8c04c61", size = 20807024, upload-time = "2026-01-20T20:43:13.036Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/80/0c22260559b440ed695093cc4da963353086fb86c6f7981812f4922a8b0a/dora_rs-0.4.1-cp37-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:49a8eb40e4836deee21958ffab6aa0cd715fa2230bbfd90447fb6917819ebaa9", size = 19532748, upload-time = "2026-01-20T20:43:15.532Z" },
-    { url = "https://files.pythonhosted.org/packages/c0/c0/df4f3c97160c1be1b120aa6e53ed3175a8ce988acbc2b78f66f4778a17ea/dora_rs-0.4.1-cp37-abi3-musllinux_1_2_i686.whl", hash = "sha256:9b6d3ffac8f28999f6a073f024b8c4d11d39636f602af74c8fd54588ce260448", size = 20832400, upload-time = "2026-01-20T20:43:19.064Z" },
-    { url = "https://files.pythonhosted.org/packages/68/53/a0f6595e43713883e229fabdd3f4cdf5712caa4b08d2cacd51bd3681eea6/dora_rs-0.4.1-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:03a260889efe13151f95a1869173fccaca98731c9b29b24b00187a6d3ee2cea6", size = 20594335, upload-time = "2026-01-20T20:43:21.469Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/d4/e8134ce7d977fd87f507b6951b53df3aa7ab91122e7d487707352336703b/dora_rs-0.4.1-cp37-abi3-win_amd64.whl", hash = "sha256:9a424dca038006f05fcc44eaaea1a7a124a694f7aa954f8261d0bbe98877fd5b", size = 15069944, upload-time = "2026-01-20T20:43:24.614Z" },
+    { url = "https://files.pythonhosted.org/packages/28/8b/2040480f8393da850f544347a389dab6bf99c84131da9cb5a2273829a76f/dora_rs-1.0.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:56fb3daf26a978e6f535b0d6b04ac3abd362aff62de6771cd74c2dee06207cb8", size = 24759810, upload-time = "2026-09-03T12:21:42.346Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/4c/c563464b74cd31d801fe37c693751005717c80834210c1fa61cb44d7bd34/dora_rs-1.0.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:61fd33ba5a5cfa01ba4aed4c75bda490b5ad0e5d7180bde7b075d17e0c782486", size = 24061908, upload-time = "2026-09-03T12:21:29.714Z" },
+    { url = "https://files.pythonhosted.org/packages/da/20/125f14f222c2eab928b23d310eeed61c93e9805d30575d21f05df285fb84/dora_rs-1.0.1-cp311-abi3-manylinux_2_28_armv7l.whl", hash = "sha256:6b0075de47b8310bf3801f2ce70b13b6925ebe1c8a7b04c9084bcd11688506ea", size = 22804362, upload-time = "2026-09-03T12:21:32.351Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/1b/98e0ce52006fbd6d91f33037c5a76ab12edf8c74a01062af39c4dab4c403/dora_rs-1.0.1-cp311-abi3-manylinux_2_28_i686.whl", hash = "sha256:7f1377dda91435ca9d69ecce88a621052c172c2eb07f9c0aa0c1634d6bbfc057", size = 25245130, upload-time = "2026-09-03T12:21:37.702Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/80/f931008dec0806d3446de9d762cb2f16883530857e0941d36449b554b84b/dora_rs-1.0.1-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:a28d634659a23dc8df9fbd40ad093f712e202821060f949f3dba5af8f7f36377", size = 24887127, upload-time = "2026-09-03T12:21:39.886Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/43/01a610cb1f696410698ffb9a6e6d5f2dd3c6ae22ad63aed366c00136b3ae/dora_rs-1.0.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:3255d040778b44542f3d03288268a22f85253db45099d60d33776b7ef92ac1c6", size = 29797596, upload-time = "2026-09-03T12:21:44.594Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/f5/6668702f8a107c2a701bc8368d14c18d1d36b620c8c7cbc5ac2d83c58cf7/dora_rs-1.0.1-cp311-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:0febdd43c0c0b511c60def3691d83d69a54ed8543207af3bb238989f7a1f5c0b", size = 28151873, upload-time = "2026-09-03T12:21:46.781Z" },
+    { url = "https://files.pythonhosted.org/packages/06/51/0141e6fe69a7444115d0e9e56bbed234cd86035d3d5588f61d56e0778a61/dora_rs-1.0.1-cp311-abi3-musllinux_1_2_i686.whl", hash = "sha256:f774a046e6d869b4e40b9c9fea5d1a46175c3d83179b44d1f3310c788562b72e", size = 29301986, upload-time = "2026-09-03T12:21:49.576Z" },
+    { url = "https://files.pythonhosted.org/packages/04/b2/5032b628e1e46ef76180860a6f14e32b940d2979971e931630c6e10e3316/dora_rs-1.0.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:d8c8affc29e401558ac83136055750b9de10ac3d3a98855b59866b0c08260dfa", size = 29999168, upload-time = "2026-09-03T12:21:51.803Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/3b/bb7c131dd2778909f4ec4d3e0151a7fa342a38ea8fa3ca64d2ef87d93f2f/dora_rs-1.0.1-cp311-abi3-win_amd64.whl", hash = "sha256:fbca33bf87e77fb9532e3bbeff023adb0e9b8e713d6f9106f114e0b0408666f5", size = 22396575, upload-time = "2026-09-03T12:21:55.601Z" },
 ]
 
 [[package]]
@@ -122,16 +123,16 @@ wheels = [
 
 [[package]]
 name = "forge-common"
-version = "1.0.1"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c5/4c/b12f4982c811596950830905c7d7fecd400b11aba3dc65017ed49df1f7e6/forge_common-1.0.1.tar.gz", hash = "sha256:dcf3483948e072cca5b41cc235de38686fe23a84040b5bf6e90e275c93c37255", size = 7459, upload-time = "2026-08-13T16:21:33.433Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/ec/3883892d8914185523b94087d8e056dccb51ad6be7ba363ea3f33b336b51/forge_common-2.1.0.tar.gz", hash = "sha256:e7a5e12d2f861db8ca487acce4e4187c579de3433416ed6548fbd82359af7ca5", size = 18268, upload-time = "2026-09-08T14:23:52.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/c5/0e3b01f2dcc3af01927f1f935a3488ce87c3c60ebdc25e71c8f705b7202e/forge_common-1.0.1-py3-none-any.whl", hash = "sha256:4d5e14a6f7c717f818241ca2abd2aa82dd77dca563d4446c8eb6d78a3e6bd4cb", size = 8822, upload-time = "2026-08-13T16:21:32.677Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/e7/cbd3cce386e9453cc12b5f28dac8b4518485c07540160ff64cfcdb74a554/forge_common-2.1.0-py3-none-any.whl", hash = "sha256:a9483887637131407499003479d860c2241c260dbd5588b9cc498e0e418de58d", size = 20866, upload-time = "2026-09-08T14:23:51.34Z" },
 ]
 
 [[package]]
 name = "forge-gateway"
-version = "1.1.1"
+version = "2.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "click" },
@@ -139,6 +140,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "forge-common" },
     { name = "forge-msgs" },
+    { name = "forge-tool", extra = ["dora"] },
     { name = "opencv-python" },
     { name = "pillow" },
     { name = "pyyaml" },
@@ -157,12 +159,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.3.3,<9" },
-    { name = "dora-rs", specifier = "==0.4.1" },
+    { name = "dora-rs", specifier = ">=1.0.1,<2" },
     { name = "fastapi", specifier = ">=0.141.1,<1" },
-    { name = "forge-common", specifier = ">=1.0.0,<2" },
-    { name = "forge-msgs", specifier = "==1.3.0" },
+    { name = "forge-common", specifier = ">=2.1.0,<3" },
+    { name = "forge-msgs", specifier = ">=2.0.0,<3" },
+    { name = "forge-tool", extras = ["dora"], specifier = ">=2.0.0,<3" },
     { name = "opencv-python", specifier = ">=4.10,<5" },
-    { name = "pillow", specifier = ">=12.3,<13" },
+    { name = "pillow", specifier = ">=12.3,<14" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
 ]
@@ -176,7 +179,7 @@ dev = [
 
 [[package]]
 name = "forge-msgs"
-version = "1.3.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -184,9 +187,23 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/a3/2af35cceac9877e0108b30bb148ca86fbabf382b5dcb13ec732340115bc8/forge_msgs-1.3.0.tar.gz", hash = "sha256:fdc551b23a079c7272f5fde1ae75f480a21e197786248dc0e8914df6e23d42a1", size = 41192, upload-time = "2026-08-24T15:36:56.702Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/f8/abf1d497297802e078c9ca6284fb93146c966477b715d2aa0f65d359a62e/forge_msgs-2.0.0.tar.gz", hash = "sha256:77ed5f3f416d67018c8df57aebc4fea74ff8cf7895214b3d60336beb7ca79570", size = 41186, upload-time = "2026-09-04T04:08:36.406Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/44/2fb051d61f3ffd2ec0f9c8da53c06aa9fd7dad7e00d3a2ea73f3a059e66f/forge_msgs-1.3.0-py3-none-any.whl", hash = "sha256:1fe13b06e2d340e17dcb81d5db67ae015b6eb42fa4758f07ca2bf20fc3d64a3f", size = 52830, upload-time = "2026-08-24T15:36:55.786Z" },
+    { url = "https://files.pythonhosted.org/packages/77/74/a1e79e58373e7a761fbd848ae127e4eeb00327cdc09791deab02b84ec580/forge_msgs-2.0.0-py3-none-any.whl", hash = "sha256:d2d1fe3bb82d5a2f275243b92b7b50db1e8f2d4326a8dde53ece2bdcb9292213", size = 52828, upload-time = "2026-09-04T04:08:35.506Z" },
+]
+
+[[package]]
+name = "forge-tool"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/ea/4ee918458cb5fb558b3880fc89982c10142c35ff3bef5658487df6b3791d/forge_tool-2.0.0.tar.gz", hash = "sha256:93e3990f5a533b85b8d56c180c204fe26ff373de8cfdc6a2cf52d7e08ef9042b", size = 35328, upload-time = "2026-09-04T04:10:28.084Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/20/07ec4c100f14480e1c05f57d22790d9c2c990c40718a075a4282bb1c4b2b/forge_tool-2.0.0-py3-none-any.whl", hash = "sha256:dd3a3a4b806476ae28aa84393526aa9dfc71dd501f9be771c68fd0680753a75a", size = 43676, upload-time = "2026-09-04T04:10:27.022Z" },
+]
+
+[package.optional-dependencies]
+dora = [
+    { name = "forge-msgs" },
 ]
 
 [[package]]
@@ -264,7 +281,7 @@ name = "macholib"
 version = "1.16.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "altgraph", marker = "sys_platform == 'darwin'" },
+    { name = "altgraph" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/2f/97589876ea967487978071c9042518d28b958d87b17dceb7cdc1d881f963/macholib-1.16.4.tar.gz", hash = "sha256:f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362", size = 59427, upload-time = "2025-11-22T08:28:38.373Z" }
 wheels = [

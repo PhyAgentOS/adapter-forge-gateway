@@ -48,7 +48,7 @@ ToolSpec 选择业务操作，provider route 决定 Dora 通道；Node ID、Endp
 [Tool service](src/forge_gateway/services/tool_gateway_service.py)、
 [Session lifecycle tests](tests/test_tool_session.py)。
 
-兼容性：当前依赖声明为 `dora-rs==0.4.1`、`forge-msgs==1.3.0`、`forge-common>=1.0.0,<2`；以 [pyproject.toml](pyproject.toml) 与 [uv.lock](uv.lock) 为准。 Tool 协议实现为仓库内 vendored 代码。 这些声明不构成跨版本互操作保证；使用制品时还需核对 build revision 和 Skill lock。
+兼容性：当前依赖声明为 `dora-rs>=1.0.1,<2`、`forge-msgs>=2.0.0,<3`、`forge-common>=2.1.0,<3`；以 [pyproject.toml](pyproject.toml) 与 [uv.lock](uv.lock) 为准。 Tool 协议实现来自正式 `forge-tool[dora]` 分发包。 这些声明不构成跨版本互操作保证；使用制品时还需核对 build revision 和 Skill lock。
 
 后续修改 Node 入口、Endpoint 或 Tool API 时，请同步更新本节及对应配置/契约，遵循 [Node README 规范](https://github.com/PhyAgentOS/forge/blob/master/CONTRIBUTING.md#node-readme-contract)。
 
@@ -229,3 +229,20 @@ provider invoke 的 dispatch linearization point 是 lifecycle 在 `ToolGatewayS
 许可证；详见 [NOTICE](NOTICE) 和
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。发布独立可执行文件前，
 需要对 PyInstaller 产物中的完整依赖集合另行执行许可证审查。
+
+## Forge 2.x 迁移
+
+本分支准备节点版本 `2.0.0`，适配 Dora 1.x，迁移验证锁定 Dora `1.0.1`。使用正式 Forge 2.x 分发包；Common 至少为 `2.1.0`。此次更新包括依赖锁文件与各独立可执行入口。
+
+每轮报告必须列出仓库、改动和测试证据，包括各节点的 `dora run` 记录，以及包含 `adapter-forge-gateway` 的串联测试。缺少硬件或模型的验收项保持待验证。源码 PR 不等于正式发布；整体验收通过后再同步 GitLab。
+
+## 运行验证
+
+安装匹配的 `dora-rs-cli==1.0.1` 后执行：
+
+```bash
+uv run --frozen python tests/integration/run_dora_smoke.py --mode single
+uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
+```
+
+`build/forge2-acceptance/` 保存生成的 YAML、实际 `dora run` 命令、依赖版本、运行日志、HTTP 健康检查、WebSocket 状态／图像断言及退出码。串联使用合成 JPEG 彩色、原始 float32 深度和关节状态；Gateway 实际接收消息并通过 HTTP/WebSocket 提供被检查的数据。本测试不替代真机或持续运行验收。

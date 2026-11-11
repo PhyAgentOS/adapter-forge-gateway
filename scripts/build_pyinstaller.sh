@@ -44,7 +44,8 @@ echo "==> [gateway] 验证可执行文件帮助信息..."
 
 echo "==> [gateway] 验证可执行文件版本..."
 VERSION_OUTPUT="$("${DIST_FILE}" --version)"
-if [[ "${VERSION_OUTPUT}" != "forge-gateway 1.1.1" ]]; then
+EXPECTED_VERSION="$("${BUILD_ENV}/bin/python" -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+if [[ "${VERSION_OUTPUT}" != "forge-gateway ${EXPECTED_VERSION}" ]]; then
   echo "ERROR: 非预期版本输出：${VERSION_OUTPUT}" >&2
   exit 1
 fi
