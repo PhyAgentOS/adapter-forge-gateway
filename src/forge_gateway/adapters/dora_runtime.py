@@ -220,10 +220,27 @@ class GatewayDoraRunner:
             self._runtime.last_error = f"dora reader failed: {error}"
         return True
 
+    def _node_events(self) -> Iterator[dict[str, Any]]:
+        receive = getattr(self._node, "next", None)
+        if not callable(receive):
+            yield from self._node
+            return
+        # Bound native receives so the HTTP and image threads can make progress
+        # and shutdown does not depend on another data message arriving.
+        while not self._stop_event.is_set():
+            event = receive(timeout=self._poll_timeout)
+            if event is None:
+                return
+            if event.get("type") == "ERROR" and "timed out" in str(event.get("error", "")).lower():
+                continue
+            yield event
+            if event.get("type") in {"STOP", "ERROR"}:
+                return
+
     def _read_node(self) -> None:
         self._reader_started.set()
         try:
-            for event in self._node:
+            for event in self._node_events():
                 received_at = time.monotonic()
                 if self._stop_event.is_set():
                     break

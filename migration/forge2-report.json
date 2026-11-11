@@ -1,16 +1,16 @@
 {
   "repository": "adapter-forge-gateway",
   "node_candidate_version": "2.0.0",
-  "baseline_commit": "d72e8fb64161ffc2b70342939bf876296aee7dd6",
   "changes": [
     "Use official Forge Tool 2.x and public Msgs; remove vendored protocol copy.",
     "Initialize Arrow/Msgs before the Dora reader thread; add real standalone and image/state chain CI.",
-    "Synchronize English/Chinese root README guidance and frozen dependencies."
+    "Synchronize English/Chinese root README guidance and frozen dependencies.",
+    "Use bounded Dora next(timeout=) receives; ignore only receive timeouts, preserve EOF and genuine transport errors."
   ],
   "software_tests": {
     "log": "tests-final.log",
     "summary": [
-      "265 passed, 2 warnings in 2.68s"
+      "268 passed, 2 warnings"
     ]
   },
   "dora_cli": "1.0.1",
@@ -20,7 +20,7 @@
       "command": [
         "${WORKSPACE}/.test-env/bin/dora",
         "run",
-        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora/single/dataflow.yaml",
+        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora-final/single/dataflow.yaml",
         "--stop-after",
         "10s"
       ],
@@ -39,8 +39,8 @@
         "msg": "gateway healthy"
       },
       "state": {
-        "running_time": 1.313,
-        "current_frame_count": 8,
+        "running_time": 0.298,
+        "current_frame_count": 7,
         "sensors": {
           "joints": {},
           "command": {}
@@ -85,7 +85,7 @@
       "command": [
         "${WORKSPACE}/.test-env/bin/dora",
         "run",
-        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora-preload/chain/dataflow.yaml",
+        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora-final/chain/dataflow.yaml",
         "--stop-after",
         "10s"
       ],
@@ -104,8 +104,95 @@
         "msg": "gateway healthy"
       },
       "state": {
-        "running_time": 0.746,
-        "current_frame_count": 10,
+        "running_time": 1.06,
+        "current_frame_count": 20,
+        "sensors": {
+          "joints": {
+            "joint1": 0.25
+          },
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": true,
+            "required_images_ready": false,
+            "images": {
+              "image/rgb": true,
+              "image/depth": false
+            },
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "images": {
+        "image/rgb": {
+          "shape": [
+            48,
+            64,
+            3
+          ],
+          "format": "jpeg"
+        },
+        "image/depth": {
+          "shape": [
+            48,
+            64
+          ],
+          "format": "jpeg"
+        }
+      },
+      "exit_code": 0
+    },
+    {
+      "mode": "chain",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/forge2/forge-gateway-pillow13/dora-polling-final/chain/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.0.1",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "13.0.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 0.108,
+        "current_frame_count": 3,
         "sensors": {
           "joints": {
             "joint1": 0.25
