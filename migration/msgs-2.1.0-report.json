@@ -95,8 +95,7 @@
       "forge-msgs": "2.1.0",
       "pillow": "13.0.0",
       "dora-rs": "1.0.1"
-    },
-    "log": "msgs-2.1.0-logs/tests.log"
+    }
   },
   "dependency_audit": {
     "repo": "adapter-forge-gateway",
@@ -172,7 +171,7 @@
       "repo": "adapter-forge-gateway",
       "source_report": "adapter-forge-gateway/dora-single/single/report.json",
       "runtime_errors": [],
-      "log": "msgs-2.1.0-logs/adapter-forge-gateway/dora-single/single/dora.log"
+      "local_evidence": "Full original Dora log is retained under validation/downstream-msgs210-20261112/adapter-forge-gateway/dora-single/single/dora.log"
     },
     {
       "mode": "chain",
@@ -263,7 +262,7 @@
       "repo": "adapter-forge-gateway",
       "source_report": "adapter-forge-gateway/dora-chain/chain/report.json",
       "runtime_errors": [],
-      "log": "msgs-2.1.0-logs/adapter-forge-gateway/dora-chain/chain/dora.log"
+      "local_evidence": "Full original Dora log is retained under validation/downstream-msgs210-20261112/adapter-forge-gateway/dora-chain/chain/dora.log"
     },
     {
       "command": [
@@ -310,10 +309,11 @@
       "scope": "Generated 640x480 RGB/depth, Viewer and two Rust sinks plus Gateway, 10 seconds. No physical camera, hardware or sustained-run acceptance.",
       "source_report": "image-chain/chain-report.json",
       "repo": "adapter-forge-gateway",
-      "log": "msgs-2.1.0-logs/image-chain/dora.log"
+      "local_evidence": "Full original Dora log is retained under validation/downstream-msgs210-20261112/image-chain/dora.log"
     }
   ],
   "remaining": "Applicable actual hardware/model, final supported-platform artifacts, sustained run and rollback acceptance remain pending.",
   "acceptance": "Pending; software checks, fake/dummy backends and negative prerequisite records are scoped evidence only. Every new multi-node graph contains adapter-forge-gateway.",
-  "gitlab_sync": "Not performed; follows completed acceptance."
+  "gitlab_sync": "Not performed; follows completed acceptance.",
+  "log_publication": "Original logs remain in the local validation workspace. This public report publishes reviewed commands, outcomes, assertions and limitations only."
 }
