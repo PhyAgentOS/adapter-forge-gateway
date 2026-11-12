@@ -52,6 +52,7 @@ ToolSpec 选择业务操作，provider route 决定 Dora 通道；Node ID、Endp
 
 当前源码支持 Query、Action、Session；Session start/stop/status/result 与 Action cancel 分别处理。
 这不证明某个历史 Release 或 Skill 锁定的二进制具备同等能力。核对部署版本后再使用对应接口。
+HTTP `GET /invocations/{id}/result` 对已保留的 result（包括 `unknown`）返回 `200`，且不会发起 provider lookup；尚无 retained result 时返回 `202` 并尝试一次有界 refresh，抑制该 refresh 抛出的 `RuntimeError`。Dora/Tool caller 的 result 路径（仅 `tool.result.request`）是另一条路径：已保留的非 unknown terminal 结果（`completed`/`failed`/`cancelled`/`stopped`）直接构造 instance-less `tool.result.response` 返回；`tool.status.request` 不使用该缓存直出，仍会发起或挂接 provider status lookup。对 result 与 status 两类在途 exchange，无等待者的自动 refresh 在途时，第一个 caller 先预留一个响应槽位并挂接该 exchange，复用唯一的 provider lookup；再来的并发等待者收到可重试的 `FORGE_TOOL_GATEWAY_BUSY`；`unknown` 仍需 provider 对账；outbound 有界邮箱绝对无容量时抛出 `ToolGatewayMailboxFull`，不会伪造 BUSY。该邮箱错误不是 HTTP 状态码。
 实现：[HTTP routes](src/forge_gateway/controllers/tool_controller.py)、
 [Tool service](src/forge_gateway/services/tool_gateway_service.py)、
 [Session lifecycle tests](tests/test_tool_session.py)。

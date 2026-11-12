@@ -53,6 +53,7 @@ Node IDs, Endpoint IDs and Tool IDs are separate identities.
 
 Current source supports Query, Action and Session, with Session start/stop/status/result handled separately from Action cancel.
 This does not establish equivalent capability in a historical Release or Skill-locked binary. Check deployment revisions first.
+HTTP `GET /invocations/{id}/result` returns `200` with any retained result, including an `unknown` result, and does not start a provider lookup; when no result is retained it returns `202` and attempts a bounded refresh, suppressing `RuntimeError` from that refresh. The Dora/Tool caller result path (`tool.result.request`) is separate: a retained non-unknown terminal result (`completed`/`failed`/`cancelled`/`stopped`) is served directly as an instance-less `tool.result.response`; `tool.status.request` does not use this direct-out path and still queues or attaches a provider status lookup. For both result and status requests, a waiter-less automatic refresh in flight is joined by the first caller, which reserves one response slot and reuses the single provider lookup; a further concurrent waiter receives retryable `FORGE_TOOL_GATEWAY_BUSY`; `unknown` still requires provider reconciliation; and an absolutely full outbound mailbox raises `ToolGatewayMailboxFull` instead of fabricating BUSY. That mailbox error is not an HTTP status code.
 Implementation: [HTTP routes](src/forge_gateway/controllers/tool_controller.py),
 [Tool service](src/forge_gateway/services/tool_gateway_service.py),
 [Session lifecycle tests](tests/test_tool_session.py).
