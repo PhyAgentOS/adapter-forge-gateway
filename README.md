@@ -2,6 +2,14 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
+## BREAKING CHANGE: Forge 2.x / Dora 1.x migration
+
+This migration from Forge 1.x / Dora 0.4.x requires coordinated deployment. Align the Forge packages, Dora CLI/coordinator/daemon, this node and its peer nodes before connecting a dataflow; replacing only one node in a Forge 1.x deployment is unsupported. Rebuild and redeploy executable artifacts with the matching environment. Keep `stable/1.x` for deployments that still use the previous stack.
+
+The validated Python baseline is `forge-msgs==2.1.0`, `Pillow==13.0.0`, `forge-common==2.1.0`, the applicable `forge-robot` / `forge-policy` / `forge-kinematics` / `forge-tool` packages at `2.0.0`, and `dora-rs==1.0.1`. Respect this repository's Python and SDK platform requirements. Forge package families have independent versions. Rust nodes retain the published `forge_msgs` crate `2.0.0` with Dora `1.0.1`; Python Msgs `2.1.0` does not require a nonexistent Rust `2.1.0` release. The `forge_msgs.v1` message namespace remains unchanged.
+
+This notice describes the deployment break from the previous stack; it does not declare hardware, real-model or sustained-run acceptance complete. See [this round's verification report](migration/msgs-2.1.0-report.json) for actual tests and outstanding gates.
+
 `gateway` is the unified runtime entrypoint for local HTTP control, runtime readiness/start gates, and state/image WebSockets.
 
 This standalone open-source repository evolved from the Forge Runtime Gateway Node.
@@ -49,7 +57,7 @@ Implementation: [HTTP routes](src/forge_gateway/controllers/tool_controller.py),
 [Tool service](src/forge_gateway/services/tool_gateway_service.py),
 [Session lifecycle tests](tests/test_tool_session.py).
 
-Compatibility: current dependency declarations are `dora-rs==0.4.1`, `forge-msgs==1.3.0`, `forge-common>=1.0.0,<2`. See [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). The Tool protocol implementation is vendored in this repository. These declarations do not guarantee cross-version interoperability; also check the build revision and Skill lock when using artifacts.
+Compatibility: current dependency declarations are `dora-rs>=1.0.1,<2`, `forge-msgs>=2.0.0,<3`, `forge-common>=2.1.0,<3`. See [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). The Tool protocol implementation comes from the official `forge-tool[dora]` distribution. These declarations do not guarantee cross-version interoperability; also check the build revision and Skill lock when using artifacts.
 
 Changes to Node entrypoints, Endpoints or Tool APIs must update this section and the associated configuration/contracts. Follow the [Node README contract](https://github.com/PhyAgentOS/forge/blob/master/CONTRIBUTING.md#node-readme-contract).
 
@@ -80,8 +88,7 @@ uv run python main.py --version
 This Node runs directly from a checkout. It neither builds/publishes a wheel or sdist nor installs a console script.
 `pyproject.toml` and `uv.lock` manage Python and dependencies; root `main.py` is the Node entrypoint,
 and `config.py` preserves historical source-import compatibility. Dependencies are locked against public indexes.
-The Apache-2.0 `forge-tool` protocol implementation is vendored to make the public checkout reproducible before
-its independent publication. Plain `pip install .` is not a supported deployment path.
+The Apache-2.0 Tool protocol implementation is installed from the official `forge-tool[dora]` distribution. Plain `pip install .` is not a supported deployment path.
 
 Build a standalone executable:
 
@@ -273,3 +280,22 @@ Repository-owned code, configuration, static resources and documentation use
 [Apache License 2.0](LICENSE). Runtime dependencies are not distributed with this source repository
 and retain their own licenses; see [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 Review the complete dependency set in a PyInstaller artifact before publishing standalone executables.
+
+## Forge 2.x migration
+
+This branch prepares node version `2.0.0` for Dora 1.x, frozen to Dora `1.0.1` for migration validation. It uses the official Forge 2.x distributions; Common is at least `2.1.0`. Regenerated locks and all executable entrypoints are part of the change.
+
+Every change report must list repository, changes and test evidence, including per-node `dora run` records and a chained test containing `adapter-forge-gateway`. Unavailable hardware/model checks remain pending. Source PRs do not publish stable releases or synchronize GitLab; synchronization follows full acceptance.
+
+ToolEndpoint implementations now come from `forge-tool[dora]>=2.0.0,<3`. The former repository-local Tool copy and private message imports are removed; messages use the public `forge_msgs.ToolMessage`.
+
+## Runtime verification
+
+Install the matching `dora-rs-cli==1.0.1`, then run:
+
+```bash
+uv run --frozen python tests/integration/run_dora_smoke.py --mode single
+uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
+```
+
+Reports under `build/forge2-acceptance/` include the generated YAML, actual `dora run` command, resolved versions, process log, HTTP health, WebSocket state/image assertions and exit code. The chain uses synthetic JPEG color, raw float32 depth and joint state; Gateway participates in message reception and serves the checked HTTP/WebSocket data. This does not replace hardware or sustained-run acceptance.

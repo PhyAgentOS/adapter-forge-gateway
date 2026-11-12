@@ -168,6 +168,9 @@ def create_uvicorn_server(
 
 
 def create_dora_node() -> DoraNodeLike:
+    # Initialize Arrow conversion before the Dora reader starts on another thread.
+    import pyarrow  # noqa: F401
+    import forge_msgs  # noqa: F401
     from dora import Node
 
     return cast(DoraNodeLike, Node())
