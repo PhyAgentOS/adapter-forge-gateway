@@ -1,0 +1,319 @@
+{
+  "repository": "adapter-forge-gateway",
+  "round": "msgs-2.1.0 alignment / 2026-11-12",
+  "breaking_change": "Forge 1.x / Dora 0.4.x to Forge 2.x / Dora 1.x requires aligned Forge packages, runtime services, node peers and rebuilt artifacts. Forge families version independently. forge_msgs.v1 remains unchanged.",
+  "changes": [
+    "Update paired README deployment/version compatibility notice",
+    "Require Python forge-msgs >=2.1.0,<3 and lock public Msgs 2.1.0 / Pillow 13.0.0, preserving all other locked package versions"
+  ],
+  "lock_updates": [
+    {
+      "repo": "adapter-forge-gateway",
+      "lock": "uv.lock",
+      "command": [
+        "${WORKSPACE}/.tools/bin/uv",
+        "lock",
+        "--upgrade-package",
+        "forge-msgs==2.1.0",
+        "--upgrade-package",
+        "pillow==13.0.0"
+      ],
+      "exit_code": 0,
+      "version_changes": [
+        {
+          "name": "forge-msgs",
+          "before": "2.0.0",
+          "after": "2.1.0"
+        },
+        {
+          "name": "pillow",
+          "before": "12.3.0",
+          "after": "13.0.0"
+        }
+      ]
+    }
+  ],
+  "lock_checks": [
+    {
+      "repo": "adapter-forge-gateway",
+      "lock": "uv.lock",
+      "check_exit": 0
+    }
+  ],
+  "software_tests": {
+    "repo": "adapter-forge-gateway",
+    "environment": "${WORKSPACE}/adapter-forge-gateway/.venv/bin/python",
+    "commands": [
+      [
+        "${WORKSPACE}/.tools/bin/uv",
+        "pip",
+        "install",
+        "--python",
+        "${WORKSPACE}/adapter-forge-gateway/.venv/bin/python",
+        "--no-deps",
+        "--index-url",
+        "https://pypi.org/simple",
+        "forge-msgs==2.1.0",
+        "pillow==13.0.0"
+      ],
+      [
+        "${WORKSPACE}/adapter-forge-gateway/.venv/bin/python",
+        "-c",
+        "from importlib.metadata import version; import json; print(json.dumps({n:version(n) for n in ['forge-msgs','pillow','dora-rs']}))"
+      ],
+      [
+        "${WORKSPACE}/.tools/bin/uv",
+        "pip",
+        "check",
+        "--python",
+        "${WORKSPACE}/adapter-forge-gateway/.venv/bin/python"
+      ],
+      [
+        "${WORKSPACE}/adapter-forge-gateway/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--import-mode=importlib"
+      ]
+    ],
+    "scope": "Existing local test environment with exact public Msgs/Pillow update; platform SDK exclusions are reported, not production acceptance.",
+    "update_exit": 0,
+    "versions_exit": 0,
+    "dependency_check_exit": 0,
+    "tests_exit": 0,
+    "test_summary": [
+      "    warnings.warn(  # deprecated in 14.0 - 2024-11-09",
+      "",
+      "tests/test_application.py::test_real_uvicorn_port_collision_is_reported_and_rolled_back",
+      "  ${WORKSPACE}/adapter-forge-gateway/.venv/lib/python3.12/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated",
+      "    from websockets.server import WebSocketServerProtocol",
+      "",
+      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+      "269 passed, 2 warnings in 4.03s"
+    ],
+    "installed_versions": {
+      "forge-msgs": "2.1.0",
+      "pillow": "13.0.0",
+      "dora-rs": "1.0.1"
+    },
+    "log": "msgs-2.1.0-logs/tests.log"
+  },
+  "dependency_audit": {
+    "repo": "adapter-forge-gateway",
+    "audit_exit": 0,
+    "findings": [],
+    "skipped": []
+  },
+  "dora_run_records": [
+    {
+      "mode": "single",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/downstream-msgs210-20261112/adapter-forge-gateway/dora-single/single/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.1.0",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "13.0.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 0.264,
+        "current_frame_count": 6,
+        "sensors": {
+          "joints": {},
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": false,
+            "required_images_ready": true,
+            "images": {},
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "exit_code": 0,
+      "repo": "adapter-forge-gateway",
+      "source_report": "adapter-forge-gateway/dora-single/single/report.json",
+      "runtime_errors": [],
+      "log": "msgs-2.1.0-logs/adapter-forge-gateway/dora-single/single/dora.log"
+    },
+    {
+      "mode": "chain",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/downstream-msgs210-20261112/adapter-forge-gateway/dora-chain/chain/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.1.0",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "13.0.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 0.747,
+        "current_frame_count": 13,
+        "sensors": {
+          "joints": {
+            "joint1": 0.25
+          },
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": true,
+            "required_images_ready": false,
+            "images": {
+              "image/rgb": true,
+              "image/depth": false
+            },
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "images": {
+        "image/rgb": {
+          "shape": [
+            48,
+            64,
+            3
+          ],
+          "format": "jpeg"
+        },
+        "image/depth": {
+          "shape": [
+            48,
+            64
+          ],
+          "format": "jpeg"
+        }
+      },
+      "exit_code": 0,
+      "repo": "adapter-forge-gateway",
+      "source_report": "adapter-forge-gateway/dora-chain/chain/report.json",
+      "runtime_errors": [],
+      "log": "msgs-2.1.0-logs/adapter-forge-gateway/dora-chain/chain/dora.log"
+    },
+    {
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/downstream-msgs210-20261112/image-chain/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "passed": true,
+      "viewer_included": true,
+      "rust_sinks_included": true,
+      "gateway_images": {
+        "image/rgb": {
+          "shape": [
+            480,
+            640,
+            3
+          ],
+          "format": "jpeg"
+        },
+        "image/depth": {
+          "shape": [
+            480,
+            640
+          ],
+          "format": "jpeg"
+        }
+      },
+      "exit_code": 0,
+      "checker": {
+        "passed": true,
+        "counts": {
+          "rgb": 284,
+          "depth": 284
+        },
+        "elapsed_seconds": 9.729441124945879,
+        "max_fixture_latency_ms": 24.139,
+        "error": null
+      },
+      "mode": "chain",
+      "entry": "generated-images-viewer-rust-sinks-gateway",
+      "scope": "Generated 640x480 RGB/depth, Viewer and two Rust sinks plus Gateway, 10 seconds. No physical camera, hardware or sustained-run acceptance.",
+      "source_report": "image-chain/chain-report.json",
+      "repo": "adapter-forge-gateway",
+      "log": "msgs-2.1.0-logs/image-chain/dora.log"
+    }
+  ],
+  "remaining": "Applicable actual hardware/model, final supported-platform artifacts, sustained run and rollback acceptance remain pending.",
+  "acceptance": "Pending; software checks, fake/dummy backends and negative prerequisite records are scoped evidence only. Every new multi-node graph contains adapter-forge-gateway.",
+  "gitlab_sync": "Not performed; follows completed acceptance."
+}

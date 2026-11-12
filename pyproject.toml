@@ -24,10 +24,10 @@ dependencies = [
     "dora-rs>=1.0.1,<2",
     "fastapi>=0.141.1,<1",
     "uvicorn[standard]>=0.30,<1",
-    "forge-msgs>=2.0.0,<3",
+    "forge-msgs>=2.1.0,<3",
     "forge-common>=2.1.0,<3",
     "opencv-python>=4.10,<5",
-    "pillow>=12.3,<14",
+    "pillow>=13.0.0,<14",
     "pyyaml>=6,<7",
 ]
 

@@ -28,7 +28,7 @@ def test_public_versions_match_project_metadata() -> None:
 def test_forge_dependencies_use_official_tool() -> None:
     metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     dependencies = metadata["project"]["dependencies"]
-    assert "forge-msgs>=2.0.0,<3" in dependencies
+    assert "forge-msgs>=2.1.0,<3" in dependencies
     assert "forge-common>=2.1.0,<3" in dependencies
     assert "forge-tool[dora]>=2.0.0,<3" in dependencies
     assert not (PROJECT_ROOT / "src" / "forge_tool").exists()
