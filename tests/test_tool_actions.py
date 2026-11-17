@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from fastapi import FastAPI
@@ -1722,3 +1723,121 @@ def test_http_pending_result_lookup_full_outbound_returns_202() -> None:
         }
     finally:
         service.begin_close()
+
+
+def test_evicted_execution_key_is_fenced_until_last_exchange_finishes() -> None:
+    config = _config()
+    config = replace(config, tools=replace(config.tools, retention_sec=0))
+    runtime = GatewayRuntime(config)
+    try:
+        _register(runtime)
+        gateway = runtime.tool_gateway
+        created = gateway.submit_http_action("robot.pick", {"run": "old"})
+        first = gateway.take_outbound()
+        assert first is not None
+        _, context = invoke_request_from_envelope(first.envelope)
+        assert gateway.refresh_action(created["invocation_id"], "result")
+        lookup = gateway.take_outbound()
+        assert lookup is not None
+        old_result = ToolResult(status="succeeded", outputs={"run": "old"})
+        gateway.handle_input(
+            "arm/to_gateway",
+            make_invoke_response_envelope(old_result, first.envelope),
+            received_at=time.monotonic(),
+        )
+        assert gateway.action_invocation_snapshot(created["invocation_id"]) is None
+
+        def retry(request_id: str) -> None:
+            gateway.handle_input(
+                "tool_request",
+                make_logical_invoke_request_envelope(
+                    ToolRequest({"run": "new"}), context, request_id=request_id
+                ),
+                received_at=time.monotonic(),
+            )
+
+        retry("while-old-result-pending")
+        rejected, = _drain_outbound(gateway)
+        assert rejected.envelope.message_type == "tool.error"
+        error = error_from_payload(rejected.envelope.payload)
+        assert error.code == "FORGE_TOOL_GATEWAY_BUSY" and error.retryable
+        old_reply = make_result_response_envelope(
+            ToolResultResponse(status="available", result=old_result), lookup.envelope
+        )
+        gateway.handle_input("arm/to_gateway", old_reply, received_at=time.monotonic())
+        assert _drain_outbound(gateway) == []
+
+        retry("after-old-result")
+        fresh, = _drain_outbound(gateway)
+        assert fresh.envelope.message_type == "tool.invoke.request"
+        gateway.handle_input("arm/to_gateway", old_reply, received_at=time.monotonic())
+        assert gateway.action_result_snapshot(created["invocation_id"]) == {"status": "pending"}
+        gateway.handle_input(
+            "arm/to_gateway",
+            make_invoke_response_envelope(ToolAccepted(), fresh.envelope),
+            received_at=time.monotonic(),
+        )
+        accepted, = _drain_outbound(gateway)
+        assert accepted.envelope.request_id == "after-old-result"
+        assert gateway.reserved_outbound_count == 0
+    finally:
+        runtime.close()
+
+
+@pytest.mark.parametrize("purpose", ["result", "status"])
+@pytest.mark.parametrize("old_waiter", [False, True])
+@pytest.mark.parametrize("old_dispatched", [False, True])
+def test_expired_lookup_is_replaced_before_sweep(
+    monkeypatch: pytest.MonkeyPatch, purpose: Literal["result", "status"],
+    old_waiter: bool, old_dispatched: bool,
+) -> None:
+    config = _config().tools
+    # Only enough room for a fresh provider send, its response reservation
+    # and (if applicable) the old waiter's timeout.
+    gateway = ToolGatewayService(config, outbound_capacity=2 + int(old_waiter))
+    try:
+        _register(SimpleNamespace(tool_gateway=gateway))  # type: ignore[arg-type]
+        created, _ = _accepted_action(gateway)
+        start = time.monotonic()
+        monkeypatch.setattr(time, "monotonic", lambda: start)
+        assert gateway.refresh_action(created["invocation_id"], purpose)
+        old_send = gateway.take_outbound() if old_dispatched else None
+        caller = replace(
+            _caller_result_request(created, "new-waiter"),
+            message_type=f"tool.{purpose}.request",
+        )
+        if old_waiter:
+            gateway.handle_input(
+                "tool_request", replace(caller, request_id="old-waiter"), received_at=start
+            )
+
+        deadline = start + config.invoke_timeout_ms / 1_000
+        monkeypatch.setattr(time, "monotonic", lambda: deadline)
+        gateway.handle_input("tool_request", caller, received_at=deadline)
+        gateway.sweep(now=deadline)
+        messages = _drain_outbound(gateway)
+        if old_waiter:
+            timed_out = messages.pop(0).envelope
+            assert timed_out.request_id == "old-waiter"
+            assert error_from_payload(timed_out.payload).code == "FORGE_TOOL_EXCHANGE_TIMEOUT"
+        fresh, = messages
+        assert fresh.envelope.message_type == caller.message_type
+        def reply_to(request: ToolEnvelope) -> None:
+            reply = (
+                make_status_response_envelope(ToolExecutionStatus(phase="running"), request)
+                if purpose == "status"
+                else make_result_response_envelope(ToolResultResponse(status="pending"), request)
+            )
+            gateway.handle_input("arm/to_gateway", reply, received_at=deadline)
+
+        if old_send is not None:
+            assert old_send.envelope.request_id != fresh.envelope.request_id
+            reply_to(old_send.envelope)
+            assert _drain_outbound(gateway) == []
+        reply_to(fresh.envelope)
+        response, = _drain_outbound(gateway)
+        assert response.envelope.message_type == f"tool.{purpose}.response"
+        assert response.envelope.request_id == "new-waiter"
+        assert gateway.reserved_outbound_count == 0
+    finally:
+        gateway.begin_close()

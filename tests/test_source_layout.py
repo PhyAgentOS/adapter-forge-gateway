@@ -43,7 +43,7 @@ def test_source_node_version_works_outside_project(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "forge-gateway 1.1.1\n"
+    assert result.stdout == "forge-gateway 1.1.2\n"
 
 
 def test_uv_project_is_not_a_python_distribution() -> None:

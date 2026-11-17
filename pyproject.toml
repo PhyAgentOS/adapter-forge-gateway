@@ -1,6 +1,6 @@
 [project]
 name = "forge-gateway"
-version = "1.1.1"
+version = "1.1.2"
 description = "Unified Forge runtime gateway: HTTP control API, runtime readiness gate, and WebSocket viewer"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
