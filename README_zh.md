@@ -49,7 +49,7 @@ HTTP `GET /invocations/{id}/result` 对已保留的 result（包括 `unknown`）
 [Tool service](src/forge_gateway/services/tool_gateway_service.py)、
 [Session lifecycle tests](tests/test_tool_session.py)。
 
-兼容性：当前依赖声明为 `dora-rs==0.4.1`、`forge-msgs==1.3.0`、`forge-common>=1.0.0,<2`；以 [pyproject.toml](pyproject.toml) 与 [uv.lock](uv.lock) 为准。 Tool 协议实现为仓库内 vendored 代码。 这些声明不构成跨版本互操作保证；使用制品时还需核对 build revision 和 Skill lock。
+兼容性：当前依赖声明为 `dora-rs==0.4.1`、`forge-msgs==1.3.1`、`forge-common>=1.0.0,<2`；以 [pyproject.toml](pyproject.toml) 与 [uv.lock](uv.lock) 为准。 Tool 协议实现为仓库内 vendored 代码。 这些声明不构成跨版本互操作保证；使用制品时还需核对 build revision 和 Skill lock。
 
 后续修改 Node 入口、Endpoint 或 Tool API 时，请同步更新本节及对应配置/契约，遵循 [Node README 规范](https://github.com/PhyAgentOS/forge/blob/master/CONTRIBUTING.md#node-readme-contract)。
 

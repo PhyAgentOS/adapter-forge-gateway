@@ -50,7 +50,7 @@ Implementation: [HTTP routes](src/forge_gateway/controllers/tool_controller.py),
 [Tool service](src/forge_gateway/services/tool_gateway_service.py),
 [Session lifecycle tests](tests/test_tool_session.py).
 
-Compatibility: current dependency declarations are `dora-rs==0.4.1`, `forge-msgs==1.3.0`, `forge-common>=1.0.0,<2`. See [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). The Tool protocol implementation is vendored in this repository. These declarations do not guarantee cross-version interoperability; also check the build revision and Skill lock when using artifacts.
+Compatibility: current dependency declarations are `dora-rs==0.4.1`, `forge-msgs==1.3.1`, `forge-common>=1.0.0,<2`. See [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). The Tool protocol implementation is vendored in this repository. These declarations do not guarantee cross-version interoperability; also check the build revision and Skill lock when using artifacts.
 
 Changes to Node entrypoints, Endpoints or Tool APIs must update this section and the associated configuration/contracts. Follow the [Node README contract](https://github.com/PhyAgentOS/forge/blob/master/CONTRIBUTING.md#node-readme-contract).
 

@@ -27,7 +27,7 @@ def test_forge_dependencies_use_vendored_tool() -> None:
     metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     dependencies = metadata["project"]["dependencies"]
 
-    assert "forge-msgs==1.3.0" in dependencies
+    assert "forge-msgs==1.3.1" in dependencies
     assert "forge-common>=1.0.0,<2" in dependencies
     assert not any(dependency.startswith("forge-tool") for dependency in dependencies)
     assert (PROJECT_ROOT / "src" / "forge_tool" / "__init__.py").is_file()
@@ -37,6 +37,6 @@ def test_forge_dependencies_use_vendored_tool() -> None:
 
 
 def test_tool_carrier_ships_with_public_forge_msgs() -> None:
-    assert version("forge-msgs") == "1.3.0"
+    assert version("forge-msgs") == "1.3.1"
     assert ToolMessage.__module__ == "forge_msgs.tool"
     assert ToolMessageSizeError.__module__ == "forge_msgs.tool"
