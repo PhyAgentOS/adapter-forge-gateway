@@ -52,7 +52,9 @@ from forge_gateway.services.tool_gateway_service import (
 )
 
 
-def _config(*, lease_ttl_ms: int = 15_000) -> GatewayConfig:
+def _config(
+    *, lease_ttl_ms: int = 15_000, ambiguous_fence_ttl_ms: int = 30_000
+) -> GatewayConfig:
     return GatewayConfig.from_dict(
         {
             "joint_order": [],
@@ -60,6 +62,7 @@ def _config(*, lease_ttl_ms: int = 15_000) -> GatewayConfig:
                 "enabled": True,
                 "lease_ttl_ms": lease_ttl_ms,
                 "invoke_timeout_ms": 5_000,
+                "ambiguous_fence_ttl_ms": ambiguous_fence_ttl_ms,
                 "invocation_capacity": 2,
                 "event_capacity": 2,
                 "retention_sec": 60,
@@ -1841,3 +1844,59 @@ def test_expired_lookup_is_replaced_before_sweep(
         assert gateway.reserved_outbound_count == 0
     finally:
         gateway.begin_close()
+
+
+def test_deadline_unknown_fence_expires_when_provider_never_answers() -> None:
+    """A silently wedged provider must not fence its operation forever.
+
+    `mark_deadlines_ambiguous` keeps the fence because the provider may still be
+    executing, and a late terminal event releases it. A provider that never sends
+    anything releases nothing, so `tools.ambiguous_fence_ttl_ms` bounds the window.
+    """
+    # A long lease TTL keeps registration expiry (which also releases the fence
+    # through mark_instance_ambiguous) out of the picture: the sweep TTL must be
+    # the only thing that frees the slot inside this test.
+    runtime = GatewayRuntime(
+        _config(lease_ttl_ms=300_000, ambiguous_fence_ttl_ms=30_000)
+    )
+    try:
+        _register(runtime, max_concurrency=1)
+        created = runtime.tool_gateway.submit_http_action("robot.pick", {})
+        provider_invoke = runtime.tool_gateway.take_outbound()
+        assert provider_invoke is not None
+        runtime.tool_gateway.handle_input(
+            "arm/to_gateway",
+            make_invoke_response_envelope(ToolAccepted(), provider_invoke.envelope),
+            received_at=time.monotonic(),
+        )
+        item = runtime.tool_gateway.action_invocations.get(
+            (created["invocation_id"], created["attempt_id"]),
+            now=time.monotonic(),
+        )
+        assert item is not None and item.deadline_ms is not None
+        sealed_at = time.monotonic()
+        runtime.tool_gateway.action_invocations.mark_deadlines_ambiguous(
+            now=sealed_at, epoch_ms=item.deadline_ms
+        )
+
+        # Inside the TTL the fence is still held: the provider may be running.
+        with pytest.raises(ActionInvocationCapacityError):
+            runtime.tool_gateway.submit_http_action("robot.pick", {})
+        runtime.tool_gateway.sweep(now=sealed_at + 29.0)
+        with pytest.raises(ActionInvocationCapacityError):
+            runtime.tool_gateway.submit_http_action("robot.pick", {})
+
+        # Past the TTL the ambiguous attempt stops fencing the operation, so a caller
+        # gets a fresh dispatch instead of a permanent 503 lockout. The provider still
+        # enforces its own max_concurrency and answers BUSY when genuinely busy.
+        runtime.tool_gateway.sweep(now=sealed_at + 31.0)
+        replacement = runtime.tool_gateway.submit_http_action("robot.pick", {})
+        assert replacement["phase"] == "dispatching"
+        snapshot = runtime.tool_gateway.action_invocation_snapshot(
+            created["invocation_id"]
+        )
+        assert snapshot is not None
+        assert snapshot["phase"] == "unknown"
+        assert snapshot["occupies_concurrency"] is False
+    finally:
+        runtime.close()

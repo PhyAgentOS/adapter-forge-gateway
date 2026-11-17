@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
@@ -55,6 +56,8 @@ from forge_gateway.domain.tool_directory import (
     ToolOperationNotFoundError,
     ToolProviderRouteIdentity,
 )
+
+logger = logging.getLogger(__name__)
 
 _MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
 DEFAULT_TOOL_OUTBOUND_CAPACITY = 256
@@ -2452,6 +2455,18 @@ class ToolGatewayService:
                 now=observation,
                 epoch_ms=int(time.time() * 1_000),
             )
+            reaped = self.action_invocations.reap_unresolved_fences(
+                now=observation,
+                max_age_seconds=self.config.ambiguous_fence_ttl_ms / 1_000,
+            )
+            if reaped:
+                logger.warning(
+                    "released %d ambiguous Action concurrency fence(s) after %.1f s "
+                    "without any provider outcome; the provider itself still rejects "
+                    "concurrent goals with BUSY",
+                    reaped,
+                    self.config.ambiguous_fence_ttl_ms / 1_000,
+                )
             for pending in timed_out:
                 response = _logical_error_response(
                     self._tool_error(
