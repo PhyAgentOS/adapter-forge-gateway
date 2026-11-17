@@ -45,7 +45,7 @@ repository at that identifier.
 
 - Component: the `ToolMessage` Arrow carrier of `forge-msgs`
 - Previously vendored as `src/forge_tool/_tool_message.py`; now provided by the
-  public `forge-msgs==1.3.0` dependency instead of a local copy.
+  public `forge-msgs==1.3.1` dependency instead of a local copy.
 - License: Apache License 2.0
 
 ## Build dependencies and binary releases
