@@ -1,6 +1,6 @@
 [project]
 name = "forge-gateway"
-version = "1.1.1"
+version = "2.0.0"
 description = "Unified Forge runtime gateway: HTTP control API, runtime readiness gate, and WebSocket viewer"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -19,14 +19,15 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
+    "forge-tool[dora]>=2.0.0,<3",
     "click>=8.3.3,<9",
-    "dora-rs==0.4.1",
+    "dora-rs>=1.0.1,<2",
     "fastapi>=0.141.1,<1",
     "uvicorn[standard]>=0.30,<1",
-    "forge-msgs==1.3.0",
-    "forge-common>=1.0.0,<2",
+    "forge-msgs>=2.1.0,<3",
+    "forge-common>=2.1.0,<3",
     "opencv-python>=4.10,<5",
-    "pillow>=12.3,<13",
+    "pillow>=13.0.0,<14",
     "pyyaml>=6,<7",
 ]
 

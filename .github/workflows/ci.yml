@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install uv
-        run: python -m pip install uv==0.12.5
+        run: python -m pip install uv==0.13.7
       - name: Sync locked environment
         run: uv sync --frozen --all-groups
       - name: Unit tests
@@ -45,11 +45,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install uv
-        run: python -m pip install uv==0.12.5
+        run: python -m pip install uv==0.13.7
       - name: Export and audit locked runtime dependencies
         run: |
           uv export --frozen --format requirements-txt --no-dev --no-emit-project --output-file /tmp/requirements.txt
-          uvx pip-audit --requirement /tmp/requirements.txt
+          uvx --python 3.12 pip-audit --requirement /tmp/requirements.txt
 
   secrets:
     runs-on: ubuntu-latest
@@ -69,3 +69,28 @@ jobs:
           if findings:
               raise SystemExit(f"Potential secrets detected: {findings}")
           PY
+
+  dora-smoke:
+    name: Dora 1.0.1 Gateway runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.7"
+      - name: Install frozen dependencies and matching CLI
+        run: |
+          uv sync --frozen --dev
+          uv tool install dora-rs-cli==1.0.1
+      - name: Run Gateway as a standalone Dora node
+        run: uv run --frozen python tests/integration/run_dora_smoke.py --mode single
+      - name: Run image and state chain through Gateway
+        run: uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: gateway-dora-run-reports
+          path: build/forge2-acceptance/

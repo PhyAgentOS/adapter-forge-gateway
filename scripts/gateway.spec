@@ -15,6 +15,7 @@ hiddenimports = (
     + collect_submodules("uvicorn")
     + collect_submodules("fastapi")
     + collect_submodules("forge_msgs")
+    + collect_submodules("forge_tool")
     + [
         "cv2",
         "dora",

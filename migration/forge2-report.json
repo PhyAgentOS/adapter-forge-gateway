@@ -1,0 +1,262 @@
+{
+  "repository": "adapter-forge-gateway",
+  "node_candidate_version": "2.0.0",
+  "changes": [
+    "Use official Forge Tool 2.x and public Msgs; remove vendored protocol copy.",
+    "Initialize Arrow/Msgs before the Dora reader thread; add real standalone and image/state chain CI.",
+    "Synchronize English/Chinese root README guidance and frozen dependencies.",
+    "Use bounded Dora next(timeout=) receives; match only the measured native receiver timeout and preserve EOF and genuine upstream timeout failures."
+  ],
+  "software_tests": {
+    "log": "tests-final.log",
+    "summary": [
+      "269 passed, 2 warnings"
+    ]
+  },
+  "dora_cli": "1.0.1",
+  "runtime_records": [
+    {
+      "mode": "single",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora-final/single/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.0.0",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "12.3.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 0.142,
+        "current_frame_count": 3,
+        "sensors": {
+          "joints": {},
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": false,
+            "required_images_ready": true,
+            "images": {},
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "exit_code": 0
+    },
+    {
+      "mode": "chain",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/forge2/adapter-forge-gateway/dora-final/chain/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.0.0",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "12.3.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 1.06,
+        "current_frame_count": 20,
+        "sensors": {
+          "joints": {
+            "joint1": 0.25
+          },
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": true,
+            "required_images_ready": false,
+            "images": {
+              "image/rgb": true,
+              "image/depth": false
+            },
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "images": {
+        "image/rgb": {
+          "shape": [
+            48,
+            64,
+            3
+          ],
+          "format": "jpeg"
+        },
+        "image/depth": {
+          "shape": [
+            48,
+            64
+          ],
+          "format": "jpeg"
+        }
+      },
+      "exit_code": 0
+    },
+    {
+      "mode": "chain",
+      "command": [
+        "${WORKSPACE}/.test-env/bin/dora",
+        "run",
+        "${WORKSPACE}/validation/forge2/forge-gateway-pillow13/dora-polling-final/chain/dataflow.yaml",
+        "--stop-after",
+        "10s"
+      ],
+      "includes_gateway": true,
+      "dora_version": "dora-cli 1.0.1",
+      "versions": {
+        "forge-msgs": "2.0.1",
+        "forge-common": "2.1.0",
+        "forge-tool": "2.0.0",
+        "dora-rs": "1.0.1",
+        "pillow": "13.0.0"
+      },
+      "passed": true,
+      "health": {
+        "ok": true,
+        "msg": "gateway healthy"
+      },
+      "state": {
+        "running_time": 0.766,
+        "current_frame_count": 10,
+        "sensors": {
+          "joints": {
+            "joint1": 0.25
+          },
+          "command": {}
+        },
+        "runtime": {
+          "phase": "running",
+          "sim_status": {
+            "status_name": "UNINITIALIZED",
+            "status_code": 0
+          },
+          "record_status": {
+            "record_state": "IDLE",
+            "episode_count": 0,
+            "current_frame_count": 0
+          },
+          "playback_status": {
+            "playback_state": "IDLE",
+            "current_time_ns": 0,
+            "total_messages": 0,
+            "mcap_path": null,
+            "error": null
+          },
+          "readiness": {
+            "ready": true,
+            "missing": [],
+            "runtime_phase": "running",
+            "proprio_state_ready": true,
+            "required_images_ready": false,
+            "images": {
+              "image/rgb": true,
+              "image/depth": false
+            },
+            "state_clients": 1,
+            "image_clients": 0,
+            "state_client_ready": true,
+            "image_client_ready": false
+          },
+          "last_error": null
+        }
+      },
+      "images": {
+        "image/rgb": {
+          "shape": [
+            48,
+            64,
+            3
+          ],
+          "format": "jpeg"
+        },
+        "image/depth": {
+          "shape": [
+            48,
+            64
+          ],
+          "format": "jpeg"
+        }
+      },
+      "exit_code": 0
+    }
+  ],
+  "runtime_missing": null,
+  "acceptance": "Pending final platform artifacts, applicable hardware/model execution and rollback/sustained-run gates.",
+  "pillow_dependency": "Node locks currently resolve published Forge Msgs 2.0.0. Security audit remains dependent on Forge PR #3 and a published security-fixed Msgs release; no vulnerability suppression was added.",
+  "gitlab_synchronization": "Not started; follows full acceptance."
+}

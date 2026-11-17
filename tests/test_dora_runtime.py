@@ -283,3 +283,50 @@ def test_unexpected_drain_exception_propagates(
             _runner(runtime, _Node()).handle_poll(None)
     finally:
         runtime.close()
+
+
+class _PollingNode(_Node):
+    def next(self, timeout: float) -> dict[str, Any] | None:
+        assert timeout > 0
+        return self.events.pop(0) if self.events else None
+
+
+def test_native_receive_timeout_does_not_stop_gateway() -> None:
+    runtime = _runtime()
+    node = _PollingNode([
+        {"type": "ERROR", "error": "Timeout event stream error: Receiver timed out\n\nLocation: native.rs:1"},
+        {"type": "INPUT", "id": "tick"},
+        {"type": "STOP"},
+    ])
+    runner = _runner(runtime, node)
+    try:
+        runner.start()
+        assert runner.run() == "stop"
+        assert runtime.last_error is None
+    finally:
+        runner.join_reader(1.0)
+        runtime.close()
+
+
+def test_native_receive_eof_ends_gateway_loop() -> None:
+    runtime = _runtime()
+    runner = _runner(runtime, _PollingNode())
+    try:
+        runner.start()
+        assert runner.run() == "eof"
+    finally:
+        runner.join_reader(1.0)
+        runtime.close()
+
+
+@pytest.mark.parametrize("error", ["transport failed", "upstream peer timed out"])
+def test_native_receive_error_remains_a_failure(error: str) -> None:
+    runtime = _runtime()
+    runner = _runner(runtime, _PollingNode([{"type": "ERROR", "error": error}]))
+    try:
+        runner.start()
+        assert runner.run() == "error"
+        assert error in str(runtime.last_error)
+    finally:
+        runner.join_reader(1.0)
+        runtime.close()

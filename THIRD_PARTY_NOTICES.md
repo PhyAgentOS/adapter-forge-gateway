@@ -55,3 +55,7 @@ vendored into this repository. A bundled executable contains runtime
 dependencies and may create license, notice, source-offer, codec, or platform
 obligations beyond source distribution. Review the complete bundled artifact
 and all dependency licenses before publishing a binary release.
+
+## Forge Tool 2.x dependency
+
+The former `src/forge_tool` copy has been removed. ToolEndpoint and Dora bindings are provided by the separately distributed Apache-2.0 `forge-tool[dora]` package. Historical copy provenance above is retained for audit history.
