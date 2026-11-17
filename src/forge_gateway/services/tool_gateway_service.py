@@ -21,6 +21,7 @@ from forge_tool import (
     ToolExecutionKey,
     ToolRequest,
     ToolResult,
+    ToolResultResponse,
     control_response_from_payload,
     endpoint_descriptor_to_payload,
     endpoint_status_from_envelope,
@@ -32,6 +33,7 @@ from forge_tool import (
     invoke_response_from_payload,
     make_endpoint_registry_response_envelope,
     make_invoke_request_envelope,
+    make_result_response_envelope,
     result_response_from_payload,
     status_response_from_payload,
     validate_message_envelope,
@@ -547,12 +549,14 @@ class ToolGatewayService:
                     "provider instance changed during Action admission"
                 )
             self._reserve_outbound_slots_locked()
+            invocation_created = False
             try:
-                self.action_invocations.create(
+                self._create_action_locked(
                     invocation,
                     now=observation,
                     operation_capacity=operation_descriptor.max_concurrency,
                 )
+                invocation_created = True
                 self._queue_action_exchange_locked(
                     invocation.key,
                     provider_request,
@@ -562,11 +566,31 @@ class ToolGatewayService:
                 )
             except BaseException:
                 self._release_outbound_slots_locked()
-                self.action_invocations.discard(invocation.key)
+                if invocation_created:
+                    self.action_invocations.discard(invocation.key)
                 raise
         snapshot = self.action_invocations.snapshot(invocation.key, now=observation)
         assert snapshot is not None
         return snapshot
+
+    def _create_action_locked(
+        self, invocation: ActionInvocation, *, now: float, operation_capacity: int | None
+    ) -> None:
+        # A retained record may expire or be evicted before its provider replies.
+        # Keep its key fenced until every correlated exchange has been settled.
+        if (
+            any(
+                exchange.execution_key == invocation.key
+                for exchange in self._action_exchanges.values()
+            )
+            and self.action_invocations.get(invocation.key, now=now) is None
+        ):
+            raise ActionInvocationCapacityError(
+                "previous Action exchanges for this ToolExecutionKey are still pending"
+            )
+        self.action_invocations.create(
+            invocation, now=now, operation_capacity=operation_capacity
+        )
 
     def _http_action_key(self, invocation_id: str, *, now: float) -> ActionKey | None:
         return self.action_invocations.resolve_http_key(invocation_id, now=now)
@@ -764,6 +788,21 @@ class ToolGatewayService:
                 raise KeyError(invocation_id)
             return self._refresh_action_key_locked(key, purpose, now=observation)
 
+    def _pending_action_lookup_locked(
+        self, key: ActionKey, purpose: Literal["status", "result"], *, now: float
+    ) -> _ActionExchange | None:
+        exchange = next(
+            (
+                entry for entry in self._action_exchanges.values()
+                if entry.execution_key == key and entry.purpose == purpose
+            ),
+            None,
+        )
+        if exchange is not None and exchange.deadline <= now:
+            self._timeout_action_exchange_locked(exchange, now=now)
+            return None
+        return exchange
+
     def _refresh_action_key_locked(
         self,
         key: ActionKey,
@@ -776,10 +815,7 @@ class ToolGatewayService:
         item = self.action_invocations.get(key, now=now)
         if item is None:
             raise KeyError(key)
-        if any(
-            exchange.execution_key == key and exchange.purpose == purpose
-            for exchange in self._action_exchanges.values()
-        ):
+        if self._pending_action_lookup_locked(key, purpose, now=now) is not None:
             return False
         expired = self._directory.expire(now)
         self._finish_unclaimed_for_removed_locked(expired, observed_at=now)
@@ -1124,7 +1160,7 @@ class ToolGatewayService:
                 for item in registration.descriptor.operations
                 if item.name == context.operation
             )
-            self.action_invocations.create(
+            self._create_action_locked(
                 invocation,
                 now=processed_at,
                 operation_capacity=operation_descriptor.max_concurrency,
@@ -1220,19 +1256,53 @@ class ToolGatewayService:
             purpose = (
                 "status" if request.message_type == "tool.status.request" else "result"
             )
-            if any(
-                exchange.execution_key == key and exchange.purpose == purpose
-                for exchange in self._action_exchanges.values()
+            # A retained terminal result is authoritative.  Serve it directly
+            # without creating a provider lookup or an exchange.  ``unknown`` is
+            # deliberately excluded: only a late terminal provider result may
+            # reconcile it.
+            if (
+                purpose == "result"
+                and item.result is not None
+                and item.result.status != "unknown"
+                and item.phase in ("completed", "failed", "cancelled", "stopped")
             ):
-                self._respond_logical_action_error_locked(
+                direct_response = make_result_response_envelope(
+                    ToolResultResponse(status="available", result=item.result),
                     request,
-                    self._tool_error(
-                        "FORGE_TOOL_GATEWAY_BUSY",
-                        f"an Action {purpose} lookup is already pending",
-                        retryable=True,
-                    ),
+                )
+                self._reserve_outbound_slots_locked()
+                self._append_reserved_outbound_locked(
+                    ToolOutboundMessage(
+                        output_id=self.config.response_output_id,
+                        envelope=direct_response,
+                        kind="caller.action_response",
+                    )
                 )
                 return
+
+            existing = self._pending_action_lookup_locked(key, purpose, now=now)
+            if existing is not None:
+                if (
+                    existing.logical_request is not None
+                    or existing.caller_response_reserved
+                ):
+                    self._respond_logical_action_error_locked(
+                        request,
+                        self._tool_error(
+                            "FORGE_TOOL_GATEWAY_BUSY",
+                            f"an Action {purpose} lookup is already pending",
+                            retryable=True,
+                        ),
+                    )
+                    return
+                # A terminal event may have started an automatic, waiter-less
+                # result lookup.  Reserve one caller response slot, then attach
+                # to that same lookup; never enqueue a second provider request.
+                self._reserve_outbound_slots_locked()
+                existing.logical_request = request
+                existing.caller_response_reserved = True
+                return
+
             try:
                 queued = self._refresh_action_key_locked(
                     key,
@@ -1241,6 +1311,21 @@ class ToolGatewayService:
                     logical_request=request,
                     caller_response_reserved=True,
                 )
+            except ToolGatewayMailboxFull as error:
+                # Exchange-table capacity can be full while the outbound
+                # mailbox still has room for a retryable BUSY response.  If the
+                # outbound mailbox itself is full, writing BUSY also fails with
+                # ToolGatewayMailboxFull, preserving the bounded-mailbox
+                # backpressure contract.
+                self._respond_logical_action_error_locked(
+                    request,
+                    self._tool_error(
+                        "FORGE_TOOL_GATEWAY_BUSY",
+                        str(error),
+                        retryable=True,
+                    ),
+                )
+                return
             except (RuntimeError, ValueError) as error:
                 self._respond_logical_action_error_locked(
                     request,
@@ -1684,18 +1769,7 @@ class ToolGatewayService:
             raise ValueError("provider response arrived on the wrong configured route")
         validate_response_correlation(exchange.provider_request, response)
         if processed_at >= exchange.deadline:
-            return self._finish_action_exchange_error_locked(
-                exchange,
-                self._tool_error(
-                    "FORGE_TOOL_EXCHANGE_TIMEOUT",
-                    f"Action {exchange.purpose} exchange timed out",
-                    retryable=exchange.purpose != "invoke",
-                ),
-                observed_at=processed_at,
-                execution_ambiguous=(
-                    exchange.purpose == "invoke" and exchange.dispatch_claimed
-                ),
-            )
+            return self._timeout_action_exchange_locked(exchange, now=processed_at)
         del self._action_exchanges[key]
         execution_key = exchange.execution_key
         if response.message_type == "tool.error":
@@ -2085,6 +2159,20 @@ class ToolGatewayService:
                 timed_out += int(deadline_elapsed)
         return completed, timed_out
 
+    def _timeout_action_exchange_locked(
+        self, exchange: _ActionExchange, *, now: float
+    ) -> bool:
+        return self._finish_action_exchange_error_locked(
+            exchange,
+            self._tool_error(
+                "FORGE_TOOL_EXCHANGE_TIMEOUT",
+                f"Action {exchange.purpose} exchange timed out",
+                retryable=exchange.purpose != "invoke",
+            ),
+            observed_at=now,
+            execution_ambiguous=exchange.purpose == "invoke" and exchange.dispatch_claimed,
+        )
+
     def _finish_action_exchange_error_locked(
         self,
         exchange: _ActionExchange,
@@ -2097,6 +2185,13 @@ class ToolGatewayService:
         if current is not exchange:
             return False
         del self._action_exchanges[exchange.provider_key]
+        if not exchange.dispatch_claimed:
+            # Release the expired/aborted send's physical mailbox slot immediately.
+            self._outbound = deque(
+                message for message in self._outbound
+                if message.kind != "provider.action_request"
+                or message.pending_key != exchange.provider_key
+            )
         key = exchange.execution_key
         if exchange.purpose == "invoke":
             if execution_ambiguous:
@@ -2352,20 +2447,7 @@ class ToolGatewayService:
             )
             completed = transition_timeouts
             for exchange in action_timeouts:
-                error = self._tool_error(
-                    "FORGE_TOOL_EXCHANGE_TIMEOUT",
-                    f"Action {exchange.purpose} exchange timed out",
-                    retryable=exchange.purpose != "invoke",
-                )
-                self._finish_action_exchange_error_locked(
-                    exchange,
-                    error,
-                    observed_at=observation,
-                    execution_ambiguous=(
-                        exchange.purpose == "invoke"
-                        and exchange.dispatch_claimed
-                    ),
-                )
+                self._timeout_action_exchange_locked(exchange, now=observation)
             self.action_invocations.mark_deadlines_ambiguous(
                 now=observation,
                 epoch_ms=int(time.time() * 1_000),
