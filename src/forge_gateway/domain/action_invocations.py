@@ -406,6 +406,40 @@ class ActionInvocationStore:
                 self._changed.notify_all()
         return changed
 
+    def reap_unresolved_fences(self, *, now: float, max_age_seconds: float) -> int:
+        """Release fences held by ambiguous records whose provider never answered.
+
+        ``mark_deadlines_ambiguous`` keeps the concurrency fence because the provider
+        may still be executing, and a late provider terminal event (or a late
+        ``tool.result``) releases it. But ``unknown`` is a terminal phase: when the
+        provider never sends anything at all -- it is wedged, it dropped the goal
+        event, or it died without the lease expiring -- no write path can ever clear
+        the fence, so the ``(endpoint, operation)`` slot stays occupied until the
+        Gateway process restarts. Callers observe that as a permanent
+        ``operation concurrency N is exhausted`` rejection for one operation.
+
+        This sweep bounds the window. Releasing the fence cannot make two
+        executions run concurrently: every provider enforces its own
+        per-operation concurrency and rejects a second goal with ``BUSY``, so the
+        worst case is a fast rejection instead of an indefinite lockout.
+
+        Returns the number of fences released.
+        """
+        released = 0
+        with self._changed:
+            for item in self._items.values():
+                if (
+                    item.phase == "unknown"
+                    and item.occupies_concurrency
+                    and item.terminal_at is not None
+                    and now - item.terminal_at >= max_age_seconds
+                ):
+                    item.occupies_concurrency = False
+                    released += 1
+            if released:
+                self._changed.notify_all()
+        return released
+
     def _make_total_capacity_locked(self) -> None:
         if len(self._items) < self.capacity:
             return
