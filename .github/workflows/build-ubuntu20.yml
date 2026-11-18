@@ -1,20 +1,39 @@
 name: Build Ubuntu 20.04 binary
-
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to build
+        description: Existing annotated vX.Y.Z tag from the selected Forge line
         required: true
-        default: v2.0.1
+        type: string
       version:
-        description: Gateway version without the v prefix
+        description: Exact node version in the tag and source manifest (not the Forge line)
         required: true
-        default: 2.0.1
-
+        type: string
+      release_line:
+        description: Forge compatibility line
+        required: true
+        type: choice
+        options:
+        - 1.x
+        - 2.x
+        default: 2.x
+  workflow_call:
+    inputs:
+      ref:
+        description: Existing annotated vX.Y.Z tag from the selected Forge line
+        required: true
+        type: string
+      version:
+        description: Exact node version in the tag and source manifest (not the Forge line)
+        required: true
+        type: string
+      release_line:
+        description: Forge compatibility line
+        required: true
+        type: string
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,58 +41,67 @@ jobs:
       image: ubuntu:20.04
     env:
       RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_TAG: ${{ inputs.ref }}
+      RELEASE_LINE: ${{ inputs.release_line }}
     steps:
-      - name: Install system tools
-        run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            binutils \
-            ca-certificates \
-            curl \
-            file \
-            git
-          rm -rf /var/lib/apt/lists/*
-
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Install uv and Python 3.12
-        run: |
-          curl -LsSf https://astral.sh/uv/0.12.5/install.sh |
-            env UV_INSTALL_DIR=/usr/local/bin sh
-          uv python install 3.12
-          uv --version
-          uv run --no-project --python 3.12 python --version
-
-      - name: Build with PyInstaller
-        run: ./scripts/build_pyinstaller.sh
-
-      - name: Verify and package binary
-        run: |
-          test "${{ inputs.ref }}" = "v${RELEASE_VERSION}"
-          test "$(./dist/gateway --version)" = "forge-gateway ${RELEASE_VERSION}"
-          file ./dist/gateway
-          ldd --version | sed -n '1p'
-          archive="forge-gateway-v${RELEASE_VERSION}-ubuntu20.04-x86_64.tar.gz"
-          tar \
-            --sort=name \
-            --mtime='UTC 1970-01-01' \
-            --owner=0 \
-            --group=0 \
-            --numeric-owner \
-            -C dist \
-            -czf "${archive}" \
-            gateway
-          sha256sum "${archive}" > "${archive}.sha256"
-          test "$(tar -tzf "${archive}")" = "gateway"
-          sha256sum --check "${archive}.sha256"
-
-      - uses: actions/upload-artifact@v6
-        with:
-          name: forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64
-          path: |
-            forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64.tar.gz
-            forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 30
+    - name: Install system tools
+      run: |
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          binutils \
+          ca-certificates \
+          curl \
+          file \
+          git
+        rm -rf /var/lib/apt/lists/*
+    - uses: actions/checkout@v6
+      with:
+        ref: refs/tags/${{ inputs.ref }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Check out release tooling from the workflow commit
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ github.workflow_sha }}
+        path: .release-tools
+        persist-credentials: false
+    - name: Install uv and Python 3.12
+      run: |
+        curl -LsSf https://astral.sh/uv/0.12.5/install.sh |
+          env UV_INSTALL_DIR=/usr/local/bin sh
+        uv python install 3.12
+        uv --version
+        uv run --no-project --python 3.12 python --version
+    - name: Validate Forge release line and source version
+      run: |
+        git config --global --add safe.directory "$(pwd -P)"
+        uv run --no-project --python 3.12 python .release-tools/scripts/check_release_line.py --line "$RELEASE_LINE" --tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --default-branch master
+    - name: Build with PyInstaller
+      run: ./scripts/build_pyinstaller.sh
+    - name: Verify and package binary
+      run: |
+        test "${RELEASE_TAG}" = "v${RELEASE_VERSION}"
+        test "$(./dist/gateway --version)" = "forge-gateway ${RELEASE_VERSION}"
+        file ./dist/gateway
+        ldd --version | sed -n '1p'
+        archive="forge-gateway-v${RELEASE_VERSION}-ubuntu20.04-x86_64.tar.gz"
+        tar \
+          --sort=name \
+          --mtime='UTC 1970-01-01' \
+          --owner=0 \
+          --group=0 \
+          --numeric-owner \
+          -C dist \
+          -czf "${archive}" \
+          gateway
+        sha256sum "${archive}" > "${archive}.sha256"
+        test "$(tar -tzf "${archive}")" = "gateway"
+        sha256sum --check "${archive}.sha256"
+    - uses: actions/upload-artifact@v6
+      with:
+        name: forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64
+        path: |
+          forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64.tar.gz
+          forge-gateway-v${{ inputs.version }}-ubuntu20.04-x86_64.tar.gz.sha256
+        if-no-files-found: error
+        retention-days: 30
