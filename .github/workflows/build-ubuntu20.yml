@@ -6,11 +6,11 @@ on:
       ref:
         description: Git ref to build
         required: true
-        default: v2.0.1
+        default: v2.0.2
       version:
         description: Gateway version without the v prefix
         required: true
-        default: 2.0.1
+        default: 2.0.2
 
 permissions:
   contents: read
