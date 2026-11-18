@@ -258,6 +258,8 @@ uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
 
 ## 分版本发布
 
+**发布规则（强制）：** 合并版本/锁文件修改 → 在已审查提交上创建 annotated 版本标签 → 从该标签精确构建 → 校验产物 → 发布。禁止使用移动分支、未打标签的提交构建 Release，禁止覆盖已发布标签。
+
 | 维护线 | 源码 | 节点/包版本 | 运行时 |
 | --- | --- | --- | --- |
 | Forge 1.x | `stable/1.x` | `1.x`，标签 `v1.X.Y` | Forge 1.x / Dora 0.4.x |
