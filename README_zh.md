@@ -230,3 +230,7 @@ provider invoke 的 dispatch linearization point 是 lifecycle 在 `ToolGatewayS
 许可证；详见 [NOTICE](NOTICE) 和
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。发布独立可执行文件前，
 需要对 PyInstaller 产物中的完整依赖集合另行执行许可证审查。
+
+## CI 策略
+
+本分支不再维护自动依赖漏洞审计，也不将其作为 CI 或合并门槛。现有测试、构建及其他检查继续保留。移除审计门槛不改变锁定依赖，也不代表此前报告的漏洞已修复。

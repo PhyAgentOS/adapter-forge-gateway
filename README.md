@@ -274,3 +274,7 @@ Repository-owned code, configuration, static resources and documentation use
 [Apache License 2.0](LICENSE). Runtime dependencies are not distributed with this source repository
 and retain their own licenses; see [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 Review the complete dependency set in a PyInstaller artifact before publishing standalone executables.
+
+## CI policy
+
+Automated dependency vulnerability audits are not maintained as CI or merge gates on this branch. Existing tests, builds, and other checks remain in place. Removing the audit gate does not change locked dependencies or resolve previously reported vulnerabilities.
