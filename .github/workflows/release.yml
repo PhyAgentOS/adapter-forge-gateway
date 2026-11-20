@@ -1,0 +1,131 @@
+name: Build versioned release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_line:
+        description: Forge compatibility line (independent of the node version)
+        type: choice
+        options: [1.x, 2.x]
+        default: 2.x
+        required: true
+      tag:
+        description: Existing annotated vX.Y.Z tag on the selected release line
+        type: string
+        required: true
+      build_binaries:
+        description: Include the existing Ubuntu binary build where available
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out release tooling from the workflow commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tools
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate release line and immutable source
+        id: release
+        env:
+          RELEASE_LINE: ${{ inputs.release_line }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          python .release-tools/scripts/check_release_line.py
+          --line "$RELEASE_LINE" --tag "$RELEASE_TAG"
+          --default-branch master
+      - name: Build source archive and Python distributions when supported
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_LINE: ${{ inputs.release_line }}
+          PACKAGE_KIND: ${{ steps.release.outputs.package_kind }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          name="${GITHUB_REPOSITORY#*/}"
+          git archive --format=tar.gz --prefix="${name}-${RELEASE_TAG}/" \
+            --output="release-assets/${name}-forge-${RELEASE_LINE}-${RELEASE_TAG}-source.tar.gz" HEAD
+          if [ "$PACKAGE_KIND" = python ]; then
+            python -m pip install uv==0.13.7
+            uv build --no-sources --out-dir release-assets
+            python -m pip install twine==7.0.0
+            python -m twine check release-assets/*.whl release-assets/*[0-9].tar.gz
+          fi
+          python .release-tools/scripts/check_release_line.py \
+            --line "$RELEASE_LINE" --tag "$RELEASE_TAG" \
+            --default-branch master > release-assets/release-metadata.json
+          (cd release-assets && sha256sum ./* > source-SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-source-${{ inputs.release_line }}-${{ inputs.tag }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  binaries:
+    needs: packages
+    if: ${{ inputs.build_binaries }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-ubuntu20.yml
+    with:
+      ref: ${{ inputs.tag }}
+      version: ${{ needs.packages.outputs.version }}
+      release_line: ${{ inputs.release_line }}
+
+  draft:
+    needs: [packages, binaries]
+    if: ${{ always() && needs.packages.result == 'success' && (needs.binaries.result == 'success' || needs.binaries.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Verify assets and attach to a draft without replacing published files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_LINE: ${{ inputs.release_line }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum --check source-SHA256SUMS.txt
+          for checksum in ./*.sha256; do
+            [ -e "$checksum" ] || continue
+            sha256sum --check "$checksum"
+          done
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/release-draft-state 2>/tmp/release-lookup-error; then
+            test "$(cat /tmp/release-draft-state)" = true
+          elif grep -qi 'release not found' /tmp/release-lookup-error; then
+            printf 'Forge %s release candidate from %s.\n\nUse peers and Dora from the same compatibility line. Build success does not establish hardware, model, sustained-run or rollback acceptance. Review the workflow results before publishing.\n' \
+              "$RELEASE_LINE" "$RELEASE_TAG" > /tmp/release-notes
+            gh release create "$RELEASE_TAG" --verify-tag --draft --latest=false \
+              --title "$RELEASE_TAG (Forge $RELEASE_LINE)" --notes-file /tmp/release-notes
+          else
+            cat /tmp/release-lookup-error >&2
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" ./*
