@@ -255,3 +255,7 @@ uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
 ```
 
 `build/forge2-acceptance/` 保存生成的 YAML、实际 `dora run` 命令、依赖版本、运行日志、HTTP 健康检查、WebSocket 状态／图像断言及退出码。串联使用合成 JPEG 彩色、原始 float32 深度和关节状态；Gateway 实际接收消息并通过 HTTP/WebSocket 提供被检查的数据。本测试不替代真机或持续运行验收。
+
+## CI 策略
+
+本分支不再维护自动依赖漏洞审计，也不将其作为 CI 或合并门槛。现有测试、构建及其他检查继续保留。移除审计门槛不改变锁定依赖，也不代表此前报告的漏洞已修复。

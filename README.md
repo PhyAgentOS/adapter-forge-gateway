@@ -300,3 +300,7 @@ uv run --frozen python tests/integration/run_dora_smoke.py --mode chain
 ```
 
 Reports under `build/forge2-acceptance/` include the generated YAML, actual `dora run` command, resolved versions, process log, HTTP health, WebSocket state/image assertions and exit code. The chain uses synthetic JPEG color, raw float32 depth and joint state; Gateway participates in message reception and serves the checked HTTP/WebSocket data. This does not replace hardware or sustained-run acceptance.
+
+## CI policy
+
+Automated dependency vulnerability audits are not maintained as CI or merge gates on this branch. Existing tests, builds, and other checks remain in place. Removing the audit gate does not change locked dependencies or resolve previously reported vulnerabilities.

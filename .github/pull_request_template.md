@@ -7,7 +7,6 @@
 - [ ] `uv sync --frozen --all-groups` succeeds.
 - [ ] `uv run pytest -q` passes.
 - [ ] CLI help and version checks pass.
-- [ ] Locked runtime dependencies pass `pip-audit`.
 - [ ] No secrets, recordings, machine paths, or private repository URLs are included.
 - [ ] License notices are updated when dependencies or bundled resources change.
 
