@@ -53,6 +53,7 @@ _TOOL_GATEWAY_CONFIG_KEYS = frozenset(
         "enabled",
         "lease_ttl_ms",
         "invoke_timeout_ms",
+        "ambiguous_fence_ttl_ms",
         "request_input_id",
         "response_output_id",
         "invocation_capacity",
@@ -260,6 +261,11 @@ class ToolGatewayConfig:
     enabled: bool = False
     lease_ttl_ms: int = 15_000
     invoke_timeout_ms: int = 5_000
+    # How long an Action closed as `unknown` may keep its concurrency fence while the
+    # provider has still not reported any outcome. After this window the fence is
+    # released so one silent provider cannot block its (endpoint, operation) slot for
+    # the lifetime of the process.
+    ambiguous_fence_ttl_ms: int = 30_000
     request_input_id: str = "tool_request"
     response_output_id: str = "tool_response"
     invocation_capacity: int = 128
@@ -281,6 +287,10 @@ class ToolGatewayConfig:
         )
         invoke_timeout_ms = _positive_safe_integer(
             data.get("invoke_timeout_ms", 5_000), "tools.invoke_timeout_ms"
+        )
+        ambiguous_fence_ttl_ms = _positive_safe_integer(
+            data.get("ambiguous_fence_ttl_ms", 30_000),
+            "tools.ambiguous_fence_ttl_ms",
         )
         request_input_id = _require_non_blank_string(
             data.get("request_input_id", "tool_request"),
@@ -332,6 +342,7 @@ class ToolGatewayConfig:
             enabled=enabled,
             lease_ttl_ms=lease_ttl_ms,
             invoke_timeout_ms=invoke_timeout_ms,
+            ambiguous_fence_ttl_ms=ambiguous_fence_ttl_ms,
             request_input_id=request_input_id,
             response_output_id=response_output_id,
             invocation_capacity=invocation_capacity,
